@@ -1,0 +1,38 @@
+|--CURRENT DATE/TIME--|
+
+Current date and time (UTC): {{ current_datetime }}
+
+|--{{ events_section_title }}--|
+
+{{ events_description }}
+
+{{ events_data }}
+
+{% if available_contracts_section %}
+{{ available_contracts_section }}
+{% endif %}
+|--PORTFOLIO OVERVIEW--|
+
+Current Positions:
+{{ positions_table }}
+
+Cash Balances:
+{{ cash_balances }}
+
+Total Portfolio Market Value: ${{ total_market_value }}
+
+|--TRANSACTION LOG--|
+
+Below is a log of all transactions, so you know when shares of various companies were purchased last. Avoid buying the same thing over and over, and also consider selling items if you think they are overvalued based on recent comments.
+
+{{ transaction_log }}
+
+|--Final Instructions--|
+
+A few additional instructions to keep in mind:
+1. You should not have negative cash balances. If you do, then make sure to rebalance the portfolio accordingly.
+2. If the market is closed, do not submit BUY or SELL orders.
+3. Do not short stocks. You cannot have negative quantities; if you do, you will need to rebalance by buying shares.
+4. Limit the # of times you ask for quotes to your first 3 or 4 messages AT MOST. The less, the better.
+5. Try to avoid placing too many trades per day. If the transaction log already shows multiple trades, avoid placing more trades unless you see a big opportunity.
+6. If your total portfolio value is negative, make sure to rebalance your portfolio to bring it back to positive.

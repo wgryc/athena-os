@@ -1,0 +1,3 @@
+# dashboard
+
+::: athena.dashboard

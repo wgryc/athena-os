@@ -1,0 +1,23 @@
+openpyxl
+pandas
+yfinance
+jinja2
+python-dotenv
+massive
+anthropic
+rich
+litellm
+scipy
+databento
+flask
+python-telegram-bot
+trafilatura
+scrapingbee
+google-search-results
+tiktoken
+edgartools
+
+# Dev dependencies below...
+pytest
+mkdocs-material
+mkdocstrings[python]

@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATHENA</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦉</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <script src="{{ url_for('static', filename='athena-ui.js') }}"></script>
+</head>
+<body>
+    <header>
+        <div class="logo">ATHENA</div>
+        <div class="subtitle">Portfolio Analyst</div>
+        <div class="spacer"></div>
+        <button id="theme-toggle-btn" title="Toggle light/dark mode">
+            <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+            <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+        </button>
+        <button id="chat-toggle-btn" title="Toggle AI Chat">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+        </button>
+    </header>
+
+    <div class="tab-bar">
+        <button class="tab-btn active" data-tab="dashboard-tab">Dashboard</button>
+        <button class="tab-btn" data-tab="portfolio-tab">Portfolio</button>
+        <button class="tab-btn" data-tab="tasks-tab">Tasks</button>
+        <button class="tab-btn" data-tab="debug-tab">Debug Log</button>
+    </div>
+
+    <div id="app-layout">
+        <div id="main-content">
+
+            <!-- ── Dashboard Tab ────────────────────────────────── -->
+            <div id="dashboard-tab" class="tab-content active">
+                <div class="widgets-toolbar">
+                    <button id="widgets-refresh-btn" class="btn-secondary">Refresh</button>
+                    <span class="widgets-hint">Configured via config.json</span>
+                    <div class="spacer"></div>
+                    <button id="widgets-settings-btn" class="btn-icon" title="Edit widget layout">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div id="widgets-loading" style="display:none;">Loading widgets...</div>
+                <div id="widgets-error" style="display:none;"></div>
+                <div id="widgets-grid" class="widget-grid"></div>
+            </div>
+
+            <!-- ── Portfolio Tab ────────────────────────────────── -->
+            <div id="portfolio-tab" class="tab-content">
+                <div class="portfolio-toolbar">
+                    <button id="save-btn" class="btn-secondary">Save to File</button>
+                    <span class="save-status" id="save-status"></span>
+                    <div class="spacer"></div>
+                    <span style="color:var(--text-muted);font-size:0.8rem;" id="txn-count"></span>
+                </div>
+                <div class="txn-table-wrap">
+                    <table id="txn-table">
+                        <thead>
+                            <tr>
+                                <th>Date / Time</th>
+                                <th>Type</th>
+                                <th>Symbol</th>
+                                <th>Quantity</th>
+                                <th>Price</th>
+                                <th>Currency</th>
+                                <th></th>
+                            </tr>
+                            <tr id="add-txn-row">
+                                <td><input type="datetime-local" id="add-datetime"></td>
+                                <td><select id="add-type"></select></td>
+                                <td><input type="text" id="add-symbol" placeholder="AAPL"></td>
+                                <td><input type="number" id="add-qty" step="any" placeholder="0"></td>
+                                <td><input type="number" id="add-price" step="any" placeholder="0.00"></td>
+                                <td>
+                                    <select id="add-currency">
+                                        <option value="USD">USD</option>
+                                        <option value="CAD">CAD</option>
+                                        <option value="EUR">EUR</option>
+                                        <option value="GBP">GBP</option>
+                                        <option value="JPY">JPY</option>
+                                        <option value="HKD">HKD</option>
+                                        <option value="SGD">SGD</option>
+                                        <option value="AUD">AUD</option>
+                                        <option value="CHF">CHF</option>
+                                    </select>
+                                </td>
+                                <td><button class="btn-primary" id="add-txn-btn">Add</button></td>
+                            </tr>
+                        </thead>
+                        <tbody id="txn-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ── Tasks Tab ─────────────────────────────────── -->
+            <div id="tasks-tab" class="tab-content">
+                <div class="tasks-toolbar">
+                    <button id="tasks-save-btn" class="btn-secondary">Save to File</button>
+                    <span class="save-status" id="tasks-save-status"></span>
+                    <div class="spacer"></div>
+                    <span style="color:var(--text-muted);font-size:0.8rem;" id="task-count"></span>
+                </div>
+                <div class="tasks-table-wrap">
+                    <table id="tasks-table">
+                        <thead>
+                            <tr>
+                                <th>Task Name <span class="th-tip" data-tip="A short label for this task">?</span></th>
+                                <th>Schedule <span class="th-tip" data-tip="When to run, e.g. 'Every hour', '4:30pm ET daily'">?</span></th>
+                                <th>Description <span class="th-tip" data-tip="The prompt sent to Athena when this task runs">?</span></th>
+                                <th>Last Run <span class="th-tip" data-tip="Timestamp of the most recent execution">?</span></th>
+                                <th>Added By <span class="th-tip" data-tip="'user' if added manually, 'athena' if created by the AI">?</span></th>
+                                <th></th>
+                            </tr>
+                            <tr id="add-task-row">
+                                <td><input type="text" id="add-task-name" placeholder="News Review"></td>
+                                <td><input type="text" id="add-task-schedule" placeholder="Every hour"></td>
+                                <td><input type="text" id="add-task-desc" placeholder="Run a news search..."></td>
+                                <td><span style="color:var(--text-muted);font-size:0.78rem;">never</span></td>
+                                <td><span style="color:var(--text-muted);font-size:0.78rem;">user</span></td>
+                                <td><button class="btn-primary" id="add-task-btn">Add</button></td>
+                            </tr>
+                        </thead>
+                        <tbody id="tasks-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ── Debug Log Tab ──────────────────────────────── -->
+            <div id="debug-tab" class="tab-content">
+                <div class="debug-toolbar">
+                    <button id="debug-refresh-btn" class="btn-secondary">Refresh</button>
+                    <span class="debug-hint">Auto-refreshes after each chat message</span>
+                </div>
+                <div id="debug-log">
+                    <div class="debug-section">
+                        <div class="debug-section-header" data-target="debug-tools">Tool Definitions</div>
+                        <pre id="debug-tools" class="debug-json"></pre>
+                    </div>
+                    <div class="debug-section">
+                        <div class="debug-section-header" data-target="debug-system">System Prompt</div>
+                        <pre id="debug-system" class="debug-json"></pre>
+                    </div>
+                    <div class="debug-section">
+                        <div class="debug-section-header" data-target="debug-messages">Conversation Messages</div>
+                        <div id="debug-messages"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /main-content -->
+
+        <!-- ── Chat Panel (slide-out) ─────────────────────── -->
+        <div id="chat-panel">
+            <div id="chat-resize-handle"></div>
+            <div class="chat-panel-header">
+                <span class="chat-panel-title">ATHENA Chat</span>
+                <div class="spacer"></div>
+                <button id="reset-btn" title="Clear chat history">Clear</button>
+                <button id="chat-close-btn" title="Close chat panel">&times;</button>
+            </div>
+            <div id="messages">
+                <div class="welcome">
+                    <div class="owl">&#x1F989;</div>
+                    <p>Ask anything about your portfolio &mdash; holdings, performance, risk, diversification, or transaction history.</p>
+                </div>
+            </div>
+            <div class="input-area">
+                <form id="chat-form">
+                    <textarea id="user-input" placeholder="Ask about your portfolio..." rows="1"></textarea>
+                    <button type="submit" id="send-btn">Send</button>
+                </form>
+            </div>
+        </div>
+    </div><!-- /app-layout -->
+
+    <!-- ── Investing Warning Modal ─────────────────── -->
+    {% if show_investing_warning %}
+    <div id="investing-warning-overlay" class="modal-overlay">
+        <div class="modal-panel investing-warning-modal">
+            <div class="modal-header">
+                <h2>&#x26A0;&#xFE0F; Important Disclaimer</h2>
+            </div>
+            <div class="modal-body">
+                <p class="warning-text">
+                    ATHENA is an <strong>experimental investing toolkit</strong> built for research and exploration purposes only.
+                </p>
+                <p class="warning-text">
+                    All ideas, analysis, research, and output generated by this tool should be
+                    <strong>independently verified and confirmed by a human</strong> before acting on them.
+                </p>
+                <p class="warning-text warning-emphasis">
+                    Nothing here should be construed as investment advice.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button id="investing-warning-dismiss" class="btn-primary">I Understand</button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Widget Editor Modal ─────────────────────── -->
+    <div id="widget-editor-overlay" class="modal-overlay" style="display:none;">
+        <div class="modal-panel widget-editor-modal">
+            <div class="modal-header">
+                <h2>Edit Dashboard Widgets</h2>
+                <button id="widget-editor-close" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="we-section">
+                    <h3>Available Widgets</h3>
+                    <div id="we-available" class="we-available-list"></div>
+                </div>
+                <div class="we-section">
+                    <h3>Layout</h3>
+                    <p class="we-hint">Drag widgets from above or click + to add. Each row can have 1-4 widgets.</p>
+                    <div id="we-rows" class="we-rows"></div>
+                    <button id="we-add-row" class="btn-secondary we-add-row-btn">+ Add Row</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="we-cancel" class="btn-secondary">Cancel</button>
+                <button id="we-save" class="btn-primary">Save &amp; Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    /* ===== Theme Toggle ===== */
+    const themeToggleBtn = document.getElementById('theme-toggle-btn');
+
+    function applyTheme(theme) {
+        document.body.classList.toggle('light', theme === 'light');
+        localStorage.setItem('athena-theme', theme);
+    }
+
+    // Restore saved preference (default: dark)
+    applyTheme(localStorage.getItem('athena-theme') || 'dark');
+
+    themeToggleBtn.addEventListener('click', () => {
+        const isLight = document.body.classList.contains('light');
+        applyTheme(isLight ? 'dark' : 'light');
+        // Redraw charts with updated grid/tick colors
+        reloadChartColors();
+    });
+
+    function getChartTheme() {
+        const s = getComputedStyle(document.documentElement);
+        return {
+            gridColor: s.getPropertyValue('--border').trim(),
+            tickColor: s.getPropertyValue('--text-muted').trim(),
+            legendColor: s.getPropertyValue('--text-muted').trim(),
+        };
+    }
+
+    function reloadChartColors() {
+        const t = getChartTheme();
+        const updateChart = c => {
+            if (c.options.scales?.x?.ticks) c.options.scales.x.ticks.color = t.tickColor;
+            if (c.options.scales?.y) {
+                if (c.options.scales.y.grid) c.options.scales.y.grid.color = t.gridColor;
+                if (c.options.scales.y.ticks) c.options.scales.y.ticks.color = t.tickColor;
+            }
+            if (c.options.plugins?.legend?.labels) {
+                c.options.plugins.legend.labels.color = t.legendColor;
+            }
+            c.update('none');
+        };
+        Object.values(widgetChartInstances).forEach(updateChart);
+    }
+
+    /* ===== Tab Switching ===== */
+    let portfolioLoaded = false;
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.tab).classList.add('active');
+
+            if (btn.dataset.tab === 'dashboard-tab') loadWidgets();
+            if (btn.dataset.tab === 'portfolio-tab' && !portfolioLoaded) loadTransactions();
+            if (btn.dataset.tab === 'tasks-tab' && !tasksLoaded) loadTasks();
+            if (btn.dataset.tab === 'debug-tab') loadDebugLog();
+        });
+    });
+
+    /* ===== Chat Panel Toggle ===== */
+    const chatPanel = document.getElementById('chat-panel');
+    const chatToggleBtn = document.getElementById('chat-toggle-btn');
+    const chatCloseBtn = document.getElementById('chat-close-btn');
+
+    function toggleChat() {
+        const opening = !chatPanel.classList.contains('open');
+        chatPanel.classList.toggle('open', opening);
+        chatToggleBtn.classList.toggle('active', opening);
+        if (opening) input.focus();
+    }
+
+    // Restore saved chat width
+    const savedChatWidth = localStorage.getItem('athena-chat-width');
+    if (savedChatWidth) chatPanel.style.setProperty('--chat-width', savedChatWidth + 'px');
+
+    chatToggleBtn.addEventListener('click', toggleChat);
+    chatCloseBtn.addEventListener('click', toggleChat);
+
+    chatPanel.addEventListener('transitionend', () => {
+        window.dispatchEvent(new Event('resize'));
+    });
+
+    /* ===== Chat Panel Resize ===== */
+    const resizeHandle = document.getElementById('chat-resize-handle');
+    let isResizing = false;
+
+    resizeHandle.addEventListener('mousedown', (e) => {
+        if (!chatPanel.classList.contains('open')) return;
+        isResizing = true;
+        resizeHandle.classList.add('dragging');
+        chatPanel.style.transition = 'none';
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        const newWidth = document.documentElement.clientWidth - e.clientX;
+        const clamped = Math.max(280, Math.min(newWidth, window.innerWidth * 0.6));
+        chatPanel.style.setProperty('--chat-width', clamped + 'px');
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!isResizing) return;
+        isResizing = false;
+        resizeHandle.classList.remove('dragging');
+        chatPanel.style.transition = '';
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        const width = parseInt(getComputedStyle(chatPanel).width);
+        if (width) localStorage.setItem('athena-chat-width', width);
+    });
+
+    /* Resize charts smoothly while the panel slides */
+    const mainContent = document.getElementById('main-content');
+    const resizeObserver = new ResizeObserver(() => {
+        Object.values(widgetChartInstances).forEach(c => c.resize());
+    });
+    resizeObserver.observe(mainContent);
+
+    /* ===== Chat ===== */
+    marked.setOptions({ breaks: true, gfm: true });
+
+    function buildToolUseHTML(tools) {
+        const label = tools.length === 1 ? 'Using Tool:' : 'Using Tools:';
+        const tags = tools.map(t => `<span class="tool-tag">${t}</span>`).join('');
+        return `<div class="tool-use"><div class="tool-use-header"><span class="tool-owl">&#x1F989;</span> ${label}</div><div class="tool-tags">${tags}</div></div>`;
+    }
+
+    const messagesDiv = document.getElementById('messages');
+    const form = document.getElementById('chat-form');
+    const input = document.getElementById('user-input');
+    const sendBtn = document.getElementById('send-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    let isStreaming = false;
+
+    input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+    });
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            form.dispatchEvent(new Event('submit'));
+        }
+    });
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (isStreaming) return;
+        const message = input.value.trim();
+        if (!message) return;
+
+        const welcome = messagesDiv.querySelector('.welcome');
+        if (welcome) welcome.remove();
+
+        appendMessage('user', message);
+        input.value = '';
+        input.style.height = 'auto';
+        setLoading(true);
+        scrollToBottom(true);
+
+        let assistantDiv = appendMessage('assistant', '');
+        assistantDiv.innerHTML = '<div class="thinking"><span></span><span></span><span></span></div>';
+
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message }),
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                assistantDiv.innerHTML = `<span class="error">${err.error}</span>`;
+                setLoading(false);
+                return;
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let currentText = '';
+            let toolUseDiv = null;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    try {
+                        const event = JSON.parse(line.slice(6));
+                        if (event.type === 'chunk') {
+                            currentText += event.content;
+                            assistantDiv.innerHTML = marked.parse(currentText);
+                            scrollToBottom();
+                        } else if (event.type === 'tool_use') {
+                            // Finalize any text streamed so far, or remove empty thinking div
+                            if (currentText) {
+                                assistantDiv.innerHTML = marked.parse(currentText);
+                            } else {
+                                assistantDiv.remove();
+                            }
+                            // Show tool-use indicator
+                            toolUseDiv = appendMessage('assistant', '');
+                            toolUseDiv.innerHTML = buildToolUseHTML(event.tools);
+                            scrollToBottom();
+                        } else if (event.type === 'new_message') {
+                            // Mark tool-use indicator as done (keep it visible)
+                            if (toolUseDiv) {
+                                const ind = toolUseDiv.querySelector('.tool-use');
+                                if (ind) ind.classList.add('done');
+                                toolUseDiv = null;
+                            }
+                            // Start a fresh assistant bubble for the follow-up
+                            currentText = '';
+                            assistantDiv = appendMessage('assistant', '');
+                            assistantDiv.innerHTML = '<div class="thinking"><span></span><span></span><span></span></div>';
+                            scrollToBottom();
+                        } else if (event.type === 'error') {
+                            assistantDiv.className = 'message error-message';
+                            assistantDiv.innerHTML = '';
+                            const errBadge = document.createElement('span');
+                            errBadge.className = 'source-badge source-error';
+                            errBadge.textContent = 'Error';
+                            assistantDiv.appendChild(errBadge);
+                            assistantDiv.appendChild(document.createTextNode(event.content));
+                        }
+                    } catch {}
+                }
+            }
+            if (currentText) assistantDiv.innerHTML = marked.parse(currentText);
+        } catch (err) {
+            assistantDiv.className = 'message error-message';
+            assistantDiv.innerHTML = '';
+            const errBadge = document.createElement('span');
+            errBadge.className = 'source-badge source-error';
+            errBadge.textContent = 'Error';
+            assistantDiv.appendChild(errBadge);
+            assistantDiv.appendChild(document.createTextNode('Connection error: ' + err.message));
+        }
+        setLoading(false);
+        scrollToBottom();
+        loadDebugLog();
+        // Sync message count so polling skips web-originated messages
+        fetch('/api/messages').then(r => r.json()).then(d => { lastKnownMessageCount = d.count; }).catch(() => {});
+    });
+
+    resetBtn.addEventListener('click', async () => {
+        await fetch('/api/reset', { method: 'POST' });
+        lastKnownMessageCount = 0;
+        messagesDiv.innerHTML = `
+            <div class="welcome">
+                <div class="owl">&#x1F989;</div>
+                <p>Ask anything about your portfolio &mdash; holdings, performance, risk, diversification, or transaction history.</p>
+            </div>`;
+    });
+
+    function appendMessage(role, content, source) {
+        const div = document.createElement('div');
+        div.className = `message ${role}`;
+        if (role === 'user') {
+            if (source && source !== 'web') {
+                const badge = document.createElement('span');
+                badge.className = `source-badge source-${source}`;
+                badge.textContent = source;
+                div.appendChild(badge);
+            }
+            div.appendChild(document.createTextNode(content));
+        }
+        messagesDiv.appendChild(div);
+        scrollToBottom();  // respects near-bottom check
+        return div;
+    }
+    function isNearBottom() {
+        const threshold = 60;
+        return messagesDiv.scrollHeight - messagesDiv.scrollTop - messagesDiv.clientHeight < threshold;
+    }
+    function scrollToBottom(force) {
+        if (force || isNearBottom()) messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+    function setLoading(loading) {
+        isStreaming = loading;
+        sendBtn.disabled = loading;
+        input.disabled = loading;
+        if (!loading) input.focus();
+    }
+
+    /* ===== Portfolio Editor ===== */
+    let transactionTypes = [];
+
+    async function loadTransactions() {
+        try {
+            const resp = await fetch('/api/transactions');
+            const data = await resp.json();
+            transactionTypes = data.transaction_types;
+
+            const typeSelect = document.getElementById('add-type');
+            typeSelect.innerHTML = '';
+            transactionTypes.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t; opt.textContent = t;
+                typeSelect.appendChild(opt);
+            });
+
+            renderTransactionTable(data.transactions);
+            document.getElementById('txn-count').textContent = `${data.transactions.length} transactions`;
+            portfolioLoaded = true;
+        } catch (e) {
+            console.error('Failed to load transactions:', e);
+        }
+    }
+
+    function renderTransactionTable(txns) {
+        const tbody = document.getElementById('txn-body');
+        tbody.innerHTML = '';
+        txns.forEach(txn => {
+            const tr = document.createElement('tr');
+            const dt = new Date(txn.datetime);
+            tr.innerHTML = `
+                <td>${dt.toLocaleString()}</td>
+                <td>${txn.transaction_type}</td>
+                <td>${txn.symbol}</td>
+                <td>${txn.quantity}</td>
+                <td>${txn.price}</td>
+                <td>${txn.currency}</td>
+                <td><button class="delete-btn" data-idx="${txn.index}">Del</button></td>`;
+            tbody.appendChild(tr);
+        });
+
+        tbody.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', () => deleteTxn(parseInt(btn.dataset.idx)));
+        });
+    }
+
+    async function deleteTxn(index) {
+        if (!await athenaConfirm.show({ title: 'Delete Transaction', message: 'Delete this transaction?' })) return;
+        const resp = await fetch(`/api/transactions/${index}`, { method: 'DELETE' });
+        if (resp.ok) {
+            await loadTransactions();
+        }
+    }
+
+    document.getElementById('add-txn-btn').addEventListener('click', async () => {
+        const symbol = document.getElementById('add-symbol').value.trim();
+        const dt = document.getElementById('add-datetime').value;
+        const type = document.getElementById('add-type').value;
+        const qty = document.getElementById('add-qty').value;
+        const price = document.getElementById('add-price').value;
+        const currency = document.getElementById('add-currency').value;
+
+        if (!symbol || !dt || !qty || !price) { await athenaAlert.show({ title: 'Missing Fields', message: 'Please fill in all fields.' }); return; }
+
+        const resp = await fetch('/api/transactions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbol, datetime: dt, transaction_type: type, quantity: qty, price, currency }),
+        });
+
+        if (resp.ok) {
+            document.getElementById('add-symbol').value = '';
+            document.getElementById('add-qty').value = '';
+            document.getElementById('add-price').value = '';
+            await loadTransactions();
+        } else {
+            const err = await resp.json();
+            await athenaAlert.show({ title: 'Error', message: err.error });
+        }
+    });
+
+    document.getElementById('save-btn').addEventListener('click', async () => {
+        const status = document.getElementById('save-status');
+        status.textContent = 'Saving...';
+        const resp = await fetch('/api/save', { method: 'POST' });
+        if (resp.ok) {
+            status.textContent = 'Saved!';
+            setTimeout(() => status.textContent = '', 2000);
+        } else {
+            const err = await resp.json();
+            status.textContent = 'Error: ' + err.error;
+        }
+    });
+
+    /* ===== Tasks Editor ===== */
+    let tasksLoaded = false;
+
+    function escHtml(s) {
+        const d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    async function loadTasks() {
+        try {
+            const resp = await fetch('/api/tasks');
+            const data = await resp.json();
+            renderTasksTable(data.tasks);
+            document.getElementById('task-count').textContent = `${data.tasks.length} task(s)`;
+            tasksLoaded = true;
+        } catch (e) {
+            console.error('Failed to load tasks:', e);
+        }
+    }
+
+    function renderTasksTable(tasks) {
+        const tbody = document.getElementById('tasks-body');
+        tbody.innerHTML = '';
+        tasks.forEach(task => {
+            const tr = document.createElement('tr');
+            const lastRun = task.last_run
+                ? new Date(task.last_run).toLocaleString()
+                : 'never';
+            tr.innerHTML = `
+                <td>${escHtml(task.name)}</td>
+                <td>${escHtml(task.schedule)}</td>
+                <td>${escHtml(task.description)}</td>
+                <td>${lastRun}</td>
+                <td>${escHtml(task.added_by)}</td>
+                <td>
+                    <div class="task-actions">
+                        <button class="task-action-btn" data-idx="${task.index}">Run</button>
+                        <button class="task-action-btn task-action-danger" data-idx="${task.index}">Del</button>
+                    </div>
+                </td>`;
+            tbody.appendChild(tr);
+        });
+        tbody.querySelectorAll('.task-action-danger').forEach(btn => {
+            btn.addEventListener('click', () => deleteTask(parseInt(btn.dataset.idx)));
+        });
+        tbody.querySelectorAll('.task-action-btn:not(.task-action-danger)').forEach(btn => {
+            btn.addEventListener('click', () => runTask(parseInt(btn.dataset.idx)));
+        });
+    }
+
+    async function deleteTask(index) {
+        if (!await athenaConfirm.show({ title: 'Delete Task', message: 'Delete this task?' })) return;
+        const resp = await fetch(`/api/tasks/${index}`, { method: 'DELETE' });
+        if (resp.ok) await loadTasks();
+    }
+
+    async function runTask(index) {
+        const btn = document.querySelector(`.task-action-btn:not(.task-action-danger)[data-idx="${index}"]`);
+        if (btn) { btn.disabled = true; btn.textContent = '...'; }
+        const resp = await fetch(`/api/tasks/${index}/run`, { method: 'POST' });
+        if (resp.ok) {
+            if (btn) { btn.textContent = 'Sent'; setTimeout(() => { btn.disabled = false; btn.textContent = 'Run'; }, 3000); }
+        } else {
+            const err = await resp.json();
+            await athenaAlert.show({ title: 'Error', message: err.error });
+            if (btn) { btn.disabled = false; btn.textContent = 'Run'; }
+        }
+    }
+
+    document.getElementById('add-task-btn').addEventListener('click', async () => {
+        const name = document.getElementById('add-task-name').value.trim();
+        const schedule = document.getElementById('add-task-schedule').value.trim();
+        const desc = document.getElementById('add-task-desc').value.trim();
+
+        if (!name || !schedule || !desc) { await athenaAlert.show({ title: 'Missing Fields', message: 'Please fill in all fields.' }); return; }
+
+        const resp = await fetch('/api/tasks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, schedule, description: desc }),
+        });
+
+        if (resp.ok) {
+            document.getElementById('add-task-name').value = '';
+            document.getElementById('add-task-schedule').value = '';
+            document.getElementById('add-task-desc').value = '';
+            await loadTasks();
+        } else {
+            const err = await resp.json();
+            await athenaAlert.show({ title: 'Error', message: err.error });
+        }
+    });
+
+    document.getElementById('tasks-save-btn').addEventListener('click', async () => {
+        const status = document.getElementById('tasks-save-status');
+        status.textContent = 'Saving...';
+        const resp = await fetch('/api/tasks/save', { method: 'POST' });
+        if (resp.ok) {
+            status.textContent = 'Saved!';
+            setTimeout(() => status.textContent = '', 2000);
+        } else {
+            const err = await resp.json();
+            status.textContent = 'Error: ' + err.error;
+        }
+    });
+
+    /* ===== Widgets ===== */
+    let widgetChartInstances = {};
+
+    function applyChartTheme(config) {
+        const t = getChartTheme();
+        const cfg = JSON.parse(JSON.stringify(config));
+
+        // Scales
+        if (cfg.options?.scales?.x) {
+            if (!cfg.options.scales.x.ticks) cfg.options.scales.x.ticks = {};
+            cfg.options.scales.x.ticks.color = t.tickColor;
+            cfg.options.scales.x.ticks.font = { size: 11 };
+        }
+        if (cfg.options?.scales?.y) {
+            if (!cfg.options.scales.y.grid) cfg.options.scales.y.grid = {};
+            cfg.options.scales.y.grid.color = t.gridColor;
+            if (!cfg.options.scales.y.ticks) cfg.options.scales.y.ticks = {};
+            cfg.options.scales.y.ticks.color = t.tickColor;
+            cfg.options.scales.y.ticks.font = { size: 11 };
+
+            if (cfg.options.scales.y.ticks._currencyPrefix) {
+                const prefix = cfg.options.scales.y.ticks._currencyPrefix;
+                delete cfg.options.scales.y.ticks._currencyPrefix;
+                cfg.options.scales.y.ticks.callback = function(v) {
+                    return prefix + ' ' + v.toLocaleString();
+                };
+            }
+            if (cfg.options.scales.y.ticks._percentSuffix) {
+                delete cfg.options.scales.y.ticks._percentSuffix;
+                cfg.options.scales.y.ticks.callback = function(v) {
+                    return v.toFixed(2) + '%';
+                };
+            }
+        }
+
+        // Legend
+        if (cfg.options?.plugins?.legend?.labels) {
+            cfg.options.plugins.legend.labels.color = t.legendColor;
+        }
+
+        return cfg;
+    }
+
+    async function loadWidgets() {
+        const grid = document.getElementById('widgets-grid');
+        const loading = document.getElementById('widgets-loading');
+        const error = document.getElementById('widgets-error');
+
+        loading.style.display = 'block';
+        error.style.display = 'none';
+        grid.innerHTML = '';
+
+        // Destroy existing widget charts
+        Object.values(widgetChartInstances).forEach(c => c.destroy());
+        widgetChartInstances = {};
+
+        try {
+            const resp = await fetch('/api/widgets');
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.error || 'Failed to load widgets');
+            }
+            const data = await resp.json();
+
+            loading.style.display = 'none';
+
+            const rows = data.rows || [];
+            if (rows.length === 0) {
+                grid.innerHTML = '<div class="widgets-empty">No widgets configured. Add entries to config.json to get started.</div>';
+                return;
+            }
+
+            let chartIdx = 0;
+
+            rows.forEach(row => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = `widget-row widget-row-${row.length}`;
+
+                row.forEach(w => {
+                    const wrapper = document.createElement('div');
+                    wrapper.innerHTML = w.html;
+                    const el = wrapper.firstElementChild || wrapper;
+
+                    if (w.chart_config) {
+                        const canvas = el.querySelector('canvas.widget-chart');
+                        if (canvas) {
+                            const chartId = `widget-chart-${chartIdx++}`;
+                            canvas.id = chartId;
+
+                            requestAnimationFrame(() => {
+                                const cfg = applyChartTheme(w.chart_config);
+                                widgetChartInstances[chartId] = new Chart(
+                                    document.getElementById(chartId), cfg
+                                );
+                            });
+                        }
+                    }
+
+                    rowDiv.appendChild(el);
+                });
+
+                grid.appendChild(rowDiv);
+            });
+        } catch (e) {
+            loading.style.display = 'none';
+            error.textContent = e.message;
+            error.style.display = 'block';
+        }
+    }
+
+    document.getElementById('widgets-refresh-btn').addEventListener('click', async () => {
+        try {
+            const resp = await fetch('/api/widgets/reload', { method: 'POST' });
+            const data = await resp.json();
+            if (data.changed) {
+                document.getElementById('widgets-grid').innerHTML = '';
+                Object.values(widgetChartInstances).forEach(c => c.destroy());
+                widgetChartInstances = {};
+            }
+        } catch {}
+        loadWidgets();
+    });
+
+    /* ===== Widget Editor ===== */
+    const weOverlay = document.getElementById('widget-editor-overlay');
+    const weRowsContainer = document.getElementById('we-rows');
+    const weAvailable = document.getElementById('we-available');
+    let weAvailableWidgets = [];
+    let weRows = []; // working copy: [[{tool, kwargs}, ...], ...]
+
+    function weOpen() {
+        weOverlay.style.display = 'flex';
+        // Load available widgets and current config in parallel
+        Promise.all([
+            fetch('/api/widgets/available').then(r => r.json()),
+            fetch('/api/widgets/config').then(r => r.json()),
+        ]).then(([avail, cfg]) => {
+            weAvailableWidgets = avail.widgets;
+            weRows = JSON.parse(JSON.stringify(cfg.widgets || []));
+            weRenderAvailable();
+            weRenderRows();
+        });
+    }
+
+    function weClose() {
+        weOverlay.style.display = 'none';
+    }
+
+    document.getElementById('widgets-settings-btn').addEventListener('click', weOpen);
+    document.getElementById('widget-editor-close').addEventListener('click', weClose);
+    document.getElementById('we-cancel').addEventListener('click', weClose);
+    weOverlay.addEventListener('click', (e) => { if (e.target === weOverlay) weClose(); });
+
+    function weRenderAvailable() {
+        weAvailable.innerHTML = '';
+        weAvailableWidgets.forEach(w => {
+            const chip = document.createElement('div');
+            chip.className = 'we-chip';
+            chip.setAttribute('draggable', 'true');
+            chip.dataset.tool = w.name;
+
+            const label = document.createElement('span');
+            label.className = 'we-chip-label';
+            label.textContent = w.name.replace(/_/g, ' ');
+            chip.appendChild(label);
+
+            if (w.has_params) {
+                const paramHint = document.createElement('span');
+                paramHint.className = 'we-chip-params';
+                paramHint.textContent = w.params.map(p => p.name).join(', ');
+                chip.appendChild(paramHint);
+            }
+
+            chip.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', JSON.stringify({tool: w.name, isNew: true}));
+                chip.classList.add('dragging');
+            });
+            chip.addEventListener('dragend', () => chip.classList.remove('dragging'));
+
+            weAvailable.appendChild(chip);
+        });
+    }
+
+    function weRenderRows() {
+        weRowsContainer.innerHTML = '';
+        weRows.forEach((row, rowIdx) => {
+            const rowEl = document.createElement('div');
+            rowEl.className = 'we-row';
+            rowEl.dataset.row = rowIdx;
+
+            const rowHeader = document.createElement('div');
+            rowHeader.className = 'we-row-header';
+            rowHeader.innerHTML = `<span class="we-row-label">Row ${rowIdx + 1}</span>`;
+            const removeRowBtn = document.createElement('button');
+            removeRowBtn.className = 'we-row-remove';
+            removeRowBtn.textContent = 'Remove row';
+            removeRowBtn.addEventListener('click', () => {
+                weRows.splice(rowIdx, 1);
+                weRenderRows();
+            });
+            rowHeader.appendChild(removeRowBtn);
+            rowEl.appendChild(rowHeader);
+
+            const rowItems = document.createElement('div');
+            rowItems.className = 'we-row-items';
+            rowItems.dataset.row = rowIdx;
+
+            // Drop zone
+            rowItems.addEventListener('dragover', (e) => { e.preventDefault(); rowItems.classList.add('drag-over'); });
+            rowItems.addEventListener('dragleave', () => rowItems.classList.remove('drag-over'));
+            rowItems.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                rowItems.classList.remove('drag-over');
+                try {
+                    const payload = JSON.parse(e.dataTransfer.getData('text/plain'));
+                    if (row.length >= 4) return; // max 4 per row
+                    const widgetDef = weAvailableWidgets.find(w => w.name === payload.tool);
+                    if (payload.isNew && widgetDef && widgetDef.has_params) {
+                        const result = await athenaPrompt.show({
+                            title: widgetDef.name.replace(/_/g, ' '),
+                            inputs: widgetDef.params.map(p => ({
+                                name: p.name, label: p.name, description: p.description,
+                            })),
+                        });
+                        if (!result) return; // cancelled
+                        row.push({tool: payload.tool, kwargs: result});
+                    } else {
+                        row.push({tool: payload.tool});
+                    }
+                    weRenderRows();
+                } catch {}
+            });
+
+            row.forEach((entry, widgetIdx) => {
+                const item = document.createElement('div');
+                item.className = 'we-item';
+
+                const itemLabel = document.createElement('span');
+                itemLabel.className = 'we-item-label';
+                const displayName = entry.tool.replace(/_/g, ' ');
+                const kwargsStr = entry.kwargs ? Object.entries(entry.kwargs).map(([k,v]) => `${k}=${v}`).join(', ') : '';
+                itemLabel.textContent = kwargsStr ? `${displayName} (${kwargsStr})` : displayName;
+                item.appendChild(itemLabel);
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'we-item-remove';
+                removeBtn.innerHTML = '&times;';
+                removeBtn.title = 'Remove widget';
+                removeBtn.addEventListener('click', () => {
+                    row.splice(widgetIdx, 1);
+                    if (row.length === 0) weRows.splice(rowIdx, 1);
+                    weRenderRows();
+                });
+                item.appendChild(removeBtn);
+
+                rowItems.appendChild(item);
+            });
+
+            // Add widget button within row
+            if (row.length < 4) {
+                const addBtn = document.createElement('button');
+                addBtn.className = 'we-item-add';
+                addBtn.textContent = '+';
+                addBtn.title = 'Add widget to this row';
+                addBtn.addEventListener('click', () => weShowAddMenu(rowIdx, addBtn));
+                rowItems.appendChild(addBtn);
+            }
+
+            rowEl.appendChild(rowItems);
+            weRowsContainer.appendChild(rowEl);
+        });
+    }
+
+    function weShowAddMenu(rowIdx, anchor) {
+        // Remove existing menu
+        document.querySelectorAll('.we-add-menu').forEach(m => m.remove());
+
+        const menu = document.createElement('div');
+        menu.className = 'we-add-menu';
+        weAvailableWidgets.forEach(w => {
+            const opt = document.createElement('div');
+            opt.className = 'we-add-menu-item';
+            opt.textContent = w.name.replace(/_/g, ' ');
+            opt.addEventListener('click', async () => {
+                menu.remove();
+                if (w.has_params) {
+                    const result = await athenaPrompt.show({
+                        title: w.name.replace(/_/g, ' '),
+                        inputs: w.params.map(p => ({
+                            name: p.name, label: p.name, description: p.description,
+                        })),
+                    });
+                    if (!result) return;
+                    weRows[rowIdx].push({tool: w.name, kwargs: result});
+                } else {
+                    weRows[rowIdx].push({tool: w.name});
+                }
+                weRenderRows();
+            });
+            menu.appendChild(opt);
+        });
+
+        anchor.parentElement.appendChild(menu);
+        // Close on outside click
+        const closeMenu = (e) => {
+            if (!menu.contains(e.target) && e.target !== anchor) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', closeMenu), 0);
+    }
+
+    document.getElementById('we-add-row').addEventListener('click', () => {
+        weRows.push([]);
+        weRenderRows();
+    });
+
+    document.getElementById('we-save').addEventListener('click', async () => {
+        // Filter out empty rows
+        const cleanRows = weRows.filter(r => r.length > 0);
+        try {
+            const resp = await fetch('/api/widgets/config', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({widgets: cleanRows}),
+            });
+            if (resp.ok) {
+                weClose();
+                loadWidgets();
+            } else {
+                const err = await resp.json();
+                await athenaAlert.show({ title: 'Save Failed', message: err.error || 'Unknown error' });
+            }
+        } catch (e) {
+            await athenaAlert.show({ title: 'Save Failed', message: e.message });
+        }
+    });
+
+    /* ===== Debug Log ===== */
+    async function loadDebugLog() {
+        try {
+            const resp = await fetch('/api/chatlog');
+            const data = await resp.json();
+
+            document.getElementById('debug-tools').textContent = JSON.stringify(data.tools, null, 2);
+            document.getElementById('debug-system').textContent = data.system_prompt || '(empty)';
+
+            const debugMsgsDiv = document.getElementById('debug-messages');
+            debugMsgsDiv.innerHTML = '';
+
+            if (!data.messages || data.messages.length === 0) {
+                debugMsgsDiv.innerHTML = '<pre class="debug-json debug-empty">(no messages yet)</pre>';
+                return;
+            }
+
+            data.messages.forEach((msg, i) => {
+                const block = document.createElement('div');
+                block.className = 'debug-msg-block';
+
+                const roleClass = {
+                    'user': 'debug-role-user',
+                    'assistant': 'debug-role-assistant',
+                    'tool': 'debug-role-tool',
+                }[msg.role] || '';
+
+                const label = document.createElement('div');
+                label.className = `debug-msg-label ${roleClass}`;
+                label.textContent = `[${i}] ${msg.role}`;
+
+                const pre = document.createElement('pre');
+                pre.className = 'debug-json';
+                pre.textContent = JSON.stringify(msg, null, 2);
+
+                block.appendChild(label);
+                block.appendChild(pre);
+                debugMsgsDiv.appendChild(block);
+            });
+        } catch (e) {
+            console.error('Failed to load debug log:', e);
+        }
+    }
+
+    document.getElementById('debug-refresh-btn').addEventListener('click', loadDebugLog);
+
+    document.querySelectorAll('.debug-section-header').forEach(h => {
+        h.addEventListener('click', () => {
+            h.classList.toggle('collapsed');
+            const target = document.getElementById(h.dataset.target);
+            if (target) target.classList.toggle('hidden');
+        });
+    });
+
+    /* ===== Gateway Message Polling ===== */
+    let lastKnownMessageCount = 0;
+    let gatewayStreamDiv = null;
+    let wasGatewayStreaming = false;
+    let gatewayShowingTools = false;
+
+    async function pollGatewayMessages() {
+        if (isStreaming) {
+            pollTimer = setTimeout(pollGatewayMessages, 3000);
+            return;
+        }
+        try {
+            const resp = await fetch('/api/messages');
+            const data = await resp.json();
+            const gwStream = data.gateway_stream;
+
+            // Render new finalized messages
+            if (data.count > lastKnownMessageCount) {
+                const newMessages = data.messages.slice(lastKnownMessageCount);
+                let gatewaySource = null;
+                for (const msg of newMessages) {
+                    if (msg.source && msg.source !== 'web') {
+                        gatewaySource = msg.source;
+                    } else if (msg.role === 'user') {
+                        gatewaySource = null;
+                    }
+
+                    if (gatewaySource) {
+                        const welcome = messagesDiv.querySelector('.welcome');
+                        if (welcome) welcome.remove();
+
+                        if (msg.role === 'user') {
+                            appendMessage('user', msg.content, msg.source);
+                        } else if (msg.role === 'assistant' && msg.tool_calls) {
+                            // Show tool-use indicator (skip if streaming already showed it)
+                            if (!wasGatewayStreaming) {
+                                const toolNames = msg.tool_calls.map(tc =>
+                                    data.tool_labels?.[tc.function.name] || tc.function.name
+                                );
+                                const toolDiv = appendMessage('assistant', '');
+                                toolDiv.innerHTML = buildToolUseHTML(toolNames);
+                                // Historical messages: mark as done immediately
+                                toolDiv.querySelector('.tool-use').classList.add('done');
+                            }
+                        } else if (msg.role === 'assistant' && msg.content && !msg.tool_calls) {
+                            if (wasGatewayStreaming && gatewayStreamDiv) {
+                                // Update streaming div with final content (streaming may have missed last chunks)
+                                gatewayStreamDiv.innerHTML = marked.parse(msg.content);
+                                wasGatewayStreaming = false;
+                                gatewayStreamDiv = null;
+                                gatewayShowingTools = false;
+                            } else {
+                                const div = appendMessage('assistant', '');
+                                div.innerHTML = marked.parse(msg.content);
+                            }
+                        }
+                    }
+                }
+                lastKnownMessageCount = data.count;
+            }
+
+            // Live streaming update
+            if (gwStream) {
+                if (!gatewayStreamDiv) {
+                    const welcome = messagesDiv.querySelector('.welcome');
+                    if (welcome) welcome.remove();
+                    gatewayStreamDiv = appendMessage('assistant', '');
+                }
+
+                if (gwStream.tools) {
+                    // Transition to tool use: replace previous div with tool indicator
+                    if (!gatewayShowingTools) {
+                        gatewayStreamDiv.remove();
+                        gatewayStreamDiv = appendMessage('assistant', '');
+                        gatewayShowingTools = true;
+                    }
+                    gatewayStreamDiv.innerHTML = buildToolUseHTML(gwStream.tools);
+                } else {
+                    // Transition from tool use to streaming: keep tool indicator, create new div
+                    if (gatewayShowingTools) {
+                        const ind = gatewayStreamDiv.querySelector('.tool-use');
+                        if (ind) ind.classList.add('done');
+                        gatewayStreamDiv = appendMessage('assistant', '');
+                        gatewayShowingTools = false;
+                    }
+                    gatewayStreamDiv.innerHTML = gwStream.content
+                        ? marked.parse(gwStream.content)
+                        : '<div class="thinking"><span></span><span></span><span></span></div>';
+                }
+                scrollToBottom();
+                wasGatewayStreaming = true;
+            } else if (gatewayStreamDiv && wasGatewayStreaming) {
+                // Streaming just ended; div already has final content
+                gatewayStreamDiv = null;
+                gatewayShowingTools = false;
+            }
+        } catch {}
+
+        // Schedule next poll: fast while streaming, slow otherwise
+        const delay = gatewayStreamDiv ? 300 : 3000;
+        if (pollTimer) clearTimeout(pollTimer);
+        pollTimer = setTimeout(pollGatewayMessages, delay);
+    }
+
+    let pollTimer = setTimeout(pollGatewayMessages, 3000);
+
+    /* ===== Column-header tooltips ===== */
+    let tipPopup = null;
+    document.addEventListener('mouseenter', (e) => {
+        if (!e.target.classList?.contains('th-tip')) return;
+        if (tipPopup) tipPopup.remove();
+        tipPopup = document.createElement('div');
+        tipPopup.className = 'th-tip-popup';
+        tipPopup.textContent = e.target.dataset.tip;
+        document.body.appendChild(tipPopup);
+        const rect = e.target.getBoundingClientRect();
+        const pw = tipPopup.offsetWidth;
+        let left = rect.left + rect.width / 2 - pw / 2;
+        left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
+        tipPopup.style.left = left + 'px';
+        tipPopup.style.top = (rect.top - tipPopup.offsetHeight - 6) + 'px';
+        requestAnimationFrame(() => tipPopup?.classList.add('visible'));
+    }, true);
+    document.addEventListener('mouseleave', (e) => {
+        if (!e.target.classList?.contains('th-tip')) return;
+        if (tipPopup) { tipPopup.remove(); tipPopup = null; }
+    }, true);
+
+    /* ===== Investing Warning Modal ===== */
+    const warningOverlay = document.getElementById('investing-warning-overlay');
+    if (warningOverlay) {
+        document.getElementById('investing-warning-dismiss').addEventListener('click', () => {
+            warningOverlay.style.display = 'none';
+        });
+    }
+
+    /* ===== Initial Load ===== */
+    // Sync initial message count so polling only shows new gateway messages
+    fetch('/api/messages').then(r => r.json()).then(d => { lastKnownMessageCount = d.count; }).catch(() => {});
+    loadWidgets();
+    </script>
+</body>
+</html>

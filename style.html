@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style Guide — Deep Sea Ink</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F6F8FC; --surface: #FFFFFF; --surface-2: #F1F4FB;
+  --text: #0E1A2B; --text-muted: #4B5B73; --border: rgba(14,26,43,0.12);
+  --red: #AF3029; --orange: #BC5215; --yellow: #C08B2C;
+  --green: #3B855C; --cyan: #2B7E78; --blue: #205EA6;
+  --purple: #5E409D; --magenta: #A02F6F;
+  --font-sans: 'DM Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+.dark {
+  --bg: #0B1020; --surface: #121A33; --surface-2: #182245;
+  --text: #E8EEFC; --text-muted: #B8C6EE; --border: rgba(255,255,255,0.10);
+  --red: #D14D41; --orange: #DA702C; --yellow: #E2B53E;
+  --green: #5CB97A; --cyan: #42AEA0; --blue: #4385BE;
+  --purple: #8B7EC8; --magenta: #CE5D97;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--text); font-family: var(--font-sans);
+  line-height: 1.7; transition: background 0.35s, color 0.35s;
+}
+
+/* Layout */
+.page { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 240px; position: fixed; top: 0; left: 0; height: 100vh;
+  background: var(--surface); border-right: 1px solid var(--border);
+  padding: 28px 20px; overflow-y: auto; z-index: 10;
+  transition: background 0.35s, border-color 0.35s;
+}
+.sidebar-brand { font-weight: 800; font-size: 1.1rem; letter-spacing: -0.015em; margin-bottom: 24px; }
+.sidebar-brand span { color: var(--blue); }
+.sidebar nav a {
+  display: block; font-size: 0.82rem; font-weight: 500; color: var(--text-muted);
+  text-decoration: none; padding: 5px 0; transition: color 0.2s;
+}
+.sidebar nav a:hover { color: var(--text); }
+.sidebar nav a.sec-head {
+  font-weight: 700; color: var(--text); font-size: 0.7rem;
+  text-transform: uppercase; letter-spacing: 0.08em; margin-top: 18px; margin-bottom: 4px;
+}
+.main { margin-left: 240px; flex: 1; padding: 40px 48px 100px; max-width: 900px; }
+
+@media (max-width: 800px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding: 24px 20px 80px; }
+}
+
+/* Top bar */
+.top-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 32px; flex-wrap: wrap; gap: 12px;
+}
+.top-bar h1 { font-size: 3rem; font-weight: 800; letter-spacing: -0.015em; line-height: 1.1; }
+.theme-btn {
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+  font-family: var(--font-sans); font-size: 0.82rem; font-weight: 600;
+  padding: 8px 18px; border-radius: 8px; cursor: pointer; transition: all 0.3s;
+}
+.theme-btn:hover { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+/* Section */
+.section { margin-bottom: 48px; }
+.section-label {
+  font-family: var(--font-mono); font-size: 0.65rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.1em; color: var(--blue);
+  margin-bottom: 12px;
+}
+.section h2 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; margin-bottom: 8px; }
+.section h3 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.3; margin-bottom: 8px; }
+.section h4 { font-size: 1.05rem; font-weight: 600; line-height: 1.4; margin-bottom: 6px; }
+.section .subtitle { font-size: 1rem; font-weight: 600; color: var(--text-muted); letter-spacing: -0.005em; margin-bottom: 16px; }
+.section p { font-size: 1rem; line-height: 1.7; max-width: 640px; margin-bottom: 14px; }
+.section p.sm { font-size: 0.88rem; line-height: 1.65; color: var(--text-muted); }
+.section p em { color: var(--cyan); font-style: normal; font-weight: 600; }
+
+.divider { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+/* Card */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 22px; margin-bottom: 16px;
+  transition: background 0.35s, border-color 0.35s;
+}
+
+/* Color swatches */
+.swatch-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.swatch-item { text-align: center; cursor: pointer; }
+.swatch-circle {
+  width: 56px; height: 56px; border-radius: 12px;
+  border: 2px solid var(--border); transition: transform 0.2s;
+  position: relative;
+}
+.swatch-circle:hover { transform: scale(1.1); }
+.swatch-label { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted); margin-top: 4px; }
+.swatch-name { font-size: 0.7rem; font-weight: 600; margin-top: 2px; }
+
+/* Base color row */
+.base-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.base-item { text-align: center; }
+.base-swatch {
+  width: 80px; height: 52px; border-radius: 10px; border: 2px solid var(--border);
+  cursor: pointer; transition: transform 0.2s;
+}
+.base-swatch:hover { transform: scale(1.05); }
+.base-label { font-family: var(--font-mono); font-size: 0.58rem; color: var(--text-muted); margin-top: 4px; }
+.base-name { font-size: 0.68rem; font-weight: 600; margin-top: 2px; }
+
+/* Weight scale */
+.weight-row { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; }
+.weight-item { text-align: center; }
+.weight-demo { font-size: 1.8rem; line-height: 1.2; margin-bottom: 2px; }
+.weight-label { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted); }
+
+/* Heading demo */
+.heading-demo { margin-bottom: 20px; }
+.heading-demo .meta {
+  font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted); margin-bottom: 2px;
+}
+
+/* Nav demo */
+.nav-demo {
+  display: flex; gap: 24px; font-size: 1rem; font-weight: 500;
+  color: var(--text-muted); margin-bottom: 16px; flex-wrap: wrap;
+  padding: 14px 20px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.nav-demo .nav-brand { font-weight: 700; color: var(--text); }
+.nav-demo .nav-act { color: var(--blue); font-weight: 600; }
+
+/* Buttons */
+.btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.btn {
+  padding: 10px 20px; border-radius: 8px; font-family: var(--font-sans);
+  font-size: 0.88rem; font-weight: 600; border: none; cursor: default;
+  letter-spacing: -0.01em;
+}
+.btn.primary { background: var(--blue); color: #fff; }
+.btn.secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.btn.success { background: var(--green); color: #fff; }
+.btn.danger { background: var(--red); color: #fff; }
+
+/* Form */
+.form-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+.form-field { flex: 1; min-width: 180px; }
+.form-label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; display: block; }
+.form-input {
+  width: 100%; padding: 10px 14px; border-radius: 8px; font-family: var(--font-sans);
+  font-size: 0.95rem; border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  transition: border-color 0.2s;
+}
+.form-input:focus { outline: none; border-color: var(--blue); }
+
+/* KPIs */
+.kpi-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.kpi {
+  flex: 1; min-width: 130px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 16px;
+}
+.kpi-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 600; }
+.kpi-val { font-family: var(--font-mono); font-size: 1.5rem; font-weight: 700; margin-top: 2px; letter-spacing: -0.02em; }
+.kpi-delta { font-family: var(--font-mono); font-size: 0.75rem; font-weight: 600; margin-top: 2px; }
+
+/* Table */
+.data-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+.data-table th {
+  text-align: left; font-weight: 600; padding: 10px 14px;
+  border-bottom: 2px solid var(--border); color: var(--text-muted);
+  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em;
+}
+.data-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table .mono { font-family: var(--font-mono); font-size: 0.82rem; }
+
+/* Code */
+.code-block {
+  background: var(--surface-2); border-radius: 10px; padding: 18px 22px;
+  font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.7;
+  overflow-x: auto; white-space: pre; margin-bottom: 16px;
+}
+.ck { color: var(--green); } .cs { color: var(--cyan); }
+.cf { color: var(--orange); } .cn { color: var(--purple); }
+.cv { color: var(--blue); } .cc { color: var(--text-muted); font-style: italic; }
+
+/* Spacing demo */
+.spacing-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+.spacing-item {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 0.82rem; padding: 8px 14px;
+  background: var(--surface-2); border-radius: 8px;
+}
+.spacing-bar { background: var(--blue); border-radius: 3px; height: 10px; opacity: 0.5; }
+.spacing-val { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; color: var(--blue); white-space: nowrap; }
+
+/* Alphabet */
+.alpha { font-size: 1.1rem; letter-spacing: 0.02em; color: var(--text-muted); margin-bottom: 16px; line-height: 1.8; }
+
+/* Copy toast */
+.toast {
+  position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--text); color: var(--bg); font-family: var(--font-mono); font-size: 0.78rem;
+  padding: 10px 20px; border-radius: 10px; opacity: 0; pointer-events: none;
+  transition: opacity 0.3s, transform 0.3s; z-index: 100;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Sidebar preview */
+.sidebar-grid { display: grid; grid-template-columns: 1fr 260px; gap: 16px; margin-bottom: 16px; }
+@media (max-width: 700px) { .sidebar-grid { grid-template-columns: 1fr; } }
+.sidebar-card {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 18px;
+}
+.sidebar-card h4 { font-size: 1.05rem; font-weight: 600; margin-bottom: 6px; }
+.sidebar-card p { font-size: 0.88rem; color: var(--text-muted); line-height: 1.65; max-width: none; }
+.sidebar-card .link { color: var(--blue); font-weight: 600; font-size: 0.82rem; margin-top: 10px; display: block; }
+.sidebar-card ul { list-style: none; padding: 0; }
+.sidebar-card li {
+  font-size: 0.82rem; padding: 7px 0; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between;
+}
+.sidebar-card li:last-child { border-bottom: none; }
+.sidebar-card li .val { font-family: var(--font-mono); font-weight: 600; font-size: 0.75rem; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-brand"><span>Deep</span> Sea Ink</div>
+  <nav>
+    <a class="sec-head">Color Palette</a>
+    <a href="#light-base">Light Base</a>
+    <a href="#light-accents">Light Accents</a>
+    <a href="#dark-base">Dark Base</a>
+    <a href="#dark-accents">Dark Accents</a>
+    <a class="sec-head">Typography</a>
+    <a href="#type-overview">Overview</a>
+    <a href="#weight-scale">Weight Scale</a>
+    <a href="#headings">Headings</a>
+    <a href="#body-text">Body Text</a>
+    <a class="sec-head">Components</a>
+    <a href="#navigation">Navigation</a>
+    <a href="#buttons">Buttons</a>
+    <a href="#forms">Forms</a>
+    <a href="#kpis">KPI Cards</a>
+    <a href="#tables">Data Tables</a>
+    <a href="#code">Code Blocks</a>
+    <a class="sec-head">Layout</a>
+    <a href="#content-layout">Content + Sidebar</a>
+    <a href="#spacing">Spacing</a>
+  </nav>
+</aside>
+
+<!-- Main -->
+<div class="main">
+
+  <div class="top-bar">
+    <h1>Style Guide</h1>
+    <button class="theme-btn" onclick="document.body.classList.toggle('dark'); this.textContent = document.body.classList.contains('dark') ? '☀ Light Mode' : '☾ Dark Mode'">☾ Dark Mode</button>
+  </div>
+
+  <!-- ============ COLORS ============ -->
+
+  <div class="section" id="light-base">
+    <div class="section-label">Color Palette</div>
+    <h2>Light Mode — Base Colors</h2>
+    <div class="subtitle">Cool blue-gray surfaces for a modern, professional feel</div>
+    <div class="base-row">
+      <div class="base-item"><div class="base-swatch" style="background:#F6F8FC" onclick="copy('#F6F8FC')"></div><div class="base-label">#F6F8FC</div><div class="base-name">Background</div></div>
+      <div class="base-item"><div class="base-swatch" style="background:#FFFFFF" onclick="copy('#FFFFFF')"></div><div class="base-label">#FFFFFF</div><div class="base-name">Surface</div></div>
+      <div class="base-item"><div class="base-swatch" style="background:#F1F4FB" onclick="copy('#F1F4FB')"></div><div class="base-label">#F1F4FB</div><div class="base-name">Surface 2</div></div>
+      <div class="base-item"><div class="base-swatch" style="background:#0E1A2B" onclick="copy('#0E1A2B')"></div><div class="base-label">#0E1A2B</div><div class="base-name">Text</div></div>
+      <div class="base-item"><div class="base-swatch" style="background:#4B5B73" onclick="copy('#4B5B73')"></div><div class="base-label">#4B5B73</div><div class="base-name">Muted</div></div>
+    </div>
+  </div>
+
+  <div class="section" id="light-accents">
+    <h3>Light Mode — Accents</h3>
+    <div class="subtitle">Warm organic tones for data, highlights, and semantic colors</div>
+    <div class="swatch-grid">
+      <div class="swatch-item" onclick="copy('#AF3029')"><div class="swatch-circle" style="background:#AF3029"></div><div class="swatch-label">#AF3029</div><div class="swatch-name">Red</div></div>
+      <div class="swatch-item" onclick="copy('#BC5215')"><div class="swatch-circle" style="background:#BC5215"></div><div class="swatch-label">#BC5215</div><div class="swatch-name">Orange</div></div>
+      <div class="swatch-item" onclick="copy('#C08B2C')"><div class="swatch-circle" style="background:#C08B2C"></div><div class="swatch-label">#C08B2C</div><div class="swatch-name">Yellow</div></div>
+      <div class="swatch-item" onclick="copy('#3B855C')"><div class="swatch-circle" style="background:#3B855C"></div><div class="swatch-label">#3B855C</div><div class="swatch-name">Green</div></div>
+      <div class="swatch-item" onclick="copy('#2B7E78')"><div class="swatch-circle" style="background:#2B7E78"></div><div class="swatch-label">#2B7E78</div><div class="swatch-name">Cyan</div></div>
+      <div class="swatch-item" onclick="copy('#205EA6')"><div class="swatch-circle" style="background:#205EA6"></div><div class="swatch-label">#205EA6</div><div class="swatch-name">Blue</div></div>
+      <div class="swatch-item" onclick="copy('#5E409D')"><div class="swatch-circle" style="background:#5E409D"></div><div class="swatch-label">#5E409D</div><div class="swatch-name">Purple</div></div>
+      <div class="swatch-item" onclick="copy('#A02F6F')"><div class="swatch-circle" style="background:#A02F6F"></div><div class="swatch-label">#A02F6F</div><div class="swatch-name">Magenta</div></div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section" id="dark-base">
+    <h2>Dark Mode — Base Colors</h2>
+    <div class="subtitle">Deep navy surfaces with soft blue-white text</div>
+    <div class="base-row">
+      <div class="base-item"><div class="base-swatch" style="background:#0B1020" onclick="copy('#0B1020')"></div><div class="base-label">#0B1020</div><div class="base-name">Background</div></div>
+      <div class="base-item"><div class="base-swatch" style="background:#121A33" onclick="copy('#121A33')"></div><div class="base-label">#121A33</div><div class="base-name">Surface</div></div>
+      <div class="base-item"><div class="base-swatch" style="background:#182245" onclick="copy('#182245')"></div><div class="base-label">#182245</div><div class="base-name">Surface 2</div></div>
+      <div class="base-item"><div class="base-swatch" style="background:#E8EEFC" onclick="copy('#E8EEFC')"></div><div class="base-label">#E8EEFC</div><div class="base-name">Text</div></div>
+      <div class="base-item"><div class="base-swatch" style="background:#B8C6EE" onclick="copy('#B8C6EE')"></div><div class="base-label">#B8C6EE</div><div class="base-name">Muted</div></div>
+    </div>
+  </div>
+
+  <div class="section" id="dark-accents">
+    <h3>Dark Mode — Accents</h3>
+    <div class="subtitle">Lighter variants for readability on dark surfaces</div>
+    <div class="swatch-grid">
+      <div class="swatch-item" onclick="copy('#D14D41')"><div class="swatch-circle" style="background:#D14D41"></div><div class="swatch-label">#D14D41</div><div class="swatch-name">Red</div></div>
+      <div class="swatch-item" onclick="copy('#DA702C')"><div class="swatch-circle" style="background:#DA702C"></div><div class="swatch-label">#DA702C</div><div class="swatch-name">Orange</div></div>
+      <div class="swatch-item" onclick="copy('#E2B53E')"><div class="swatch-circle" style="background:#E2B53E"></div><div class="swatch-label">#E2B53E</div><div class="swatch-name">Yellow</div></div>
+      <div class="swatch-item" onclick="copy('#5CB97A')"><div class="swatch-circle" style="background:#5CB97A"></div><div class="swatch-label">#5CB97A</div><div class="swatch-name">Green</div></div>
+      <div class="swatch-item" onclick="copy('#42AEA0')"><div class="swatch-circle" style="background:#42AEA0"></div><div class="swatch-label">#42AEA0</div><div class="swatch-name">Cyan</div></div>
+      <div class="swatch-item" onclick="copy('#4385BE')"><div class="swatch-circle" style="background:#4385BE"></div><div class="swatch-label">#4385BE</div><div class="swatch-name">Blue</div></div>
+      <div class="swatch-item" onclick="copy('#8B7EC8')"><div class="swatch-circle" style="background:#8B7EC8"></div><div class="swatch-label">#8B7EC8</div><div class="swatch-name">Purple</div></div>
+      <div class="swatch-item" onclick="copy('#CE5D97')"><div class="swatch-circle" style="background:#CE5D97"></div><div class="swatch-label">#CE5D97</div><div class="swatch-name">Magenta</div></div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============ TYPOGRAPHY ============ -->
+
+  <div class="section" id="type-overview">
+    <div class="section-label">Typography</div>
+    <h2>All-Sans Type System</h2>
+    <div class="subtitle">One family for everything. Weight and size create hierarchy.</div>
+    <p>DM Sans handles every role — headings, body, navigation, labels, buttons, and forms. It's a variable font with an optical size axis that adjusts weight distribution at different sizes. JetBrains Mono is used only for code and numerical data.</p>
+    <div class="card" style="display:flex; gap:40px; flex-wrap:wrap; align-items:center;">
+      <div>
+        <div style="font-size:2.5rem; font-weight:800; letter-spacing:-0.015em; line-height:1.1;">DM Sans</div>
+        <div style="font-size:0.88rem; color:var(--text-muted); margin-top:4px;">Display · Body · UI</div>
+      </div>
+      <div>
+        <div style="font-family:var(--font-mono); font-size:1.8rem; font-weight:600; line-height:1.1;">JetBrains Mono</div>
+        <div style="font-size:0.88rem; color:var(--text-muted); margin-top:4px;">Code · Data · Terminal</div>
+      </div>
+    </div>
+    <div class="alpha">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789 !@#$%&amp;*()—</div>
+    <div class="alpha" style="font-family:var(--font-mono); font-size:0.95rem;">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789 !@#$%&amp;*()—</div>
+  </div>
+
+  <div class="section" id="weight-scale">
+    <h3>Weight Scale</h3>
+    <div class="subtitle">Five weights for clear visual hierarchy</div>
+    <div class="weight-row">
+      <div class="weight-item"><div class="weight-demo" style="font-weight:400">Aa</div><div class="weight-label">400 Regular</div></div>
+      <div class="weight-item"><div class="weight-demo" style="font-weight:500">Aa</div><div class="weight-label">500 Medium</div></div>
+      <div class="weight-item"><div class="weight-demo" style="font-weight:600">Aa</div><div class="weight-label">600 SemiBold</div></div>
+      <div class="weight-item"><div class="weight-demo" style="font-weight:700">Aa</div><div class="weight-label">700 Bold</div></div>
+      <div class="weight-item"><div class="weight-demo" style="font-weight:800">Aa</div><div class="weight-label">800 ExtraBold</div></div>
+    </div>
+    <table class="data-table">
+      <tr><th>Weight</th><th>Name</th><th>Use</th></tr>
+      <tr><td class="mono">400</td><td>Regular</td><td>Body paragraphs, descriptions, helper text</td></tr>
+      <tr><td class="mono">500</td><td>Medium</td><td>Nav items, form labels, table headers</td></tr>
+      <tr><td class="mono">600</td><td>SemiBold</td><td>Subheadings, emphasis, buttons, active states</td></tr>
+      <tr><td class="mono">700</td><td>Bold</td><td>Section headings, card titles</td></tr>
+      <tr><td class="mono">800</td><td>ExtraBold</td><td>Hero headings, page titles</td></tr>
+    </table>
+  </div>
+
+  <div class="section" id="headings">
+    <h3>Heading Hierarchy</h3>
+    <div class="subtitle">Relaxed tracking — intentional, never crowded</div>
+
+    <div class="heading-demo">
+      <div class="meta">H1 · 800 · 3rem · -0.015em</div>
+      <div style="font-size:3rem; font-weight:800; letter-spacing:-0.015em; line-height:1.1;">Page Hero Heading</div>
+    </div>
+    <div class="heading-demo">
+      <div class="meta">H2 · 700 · 1.75rem · -0.01em</div>
+      <div style="font-size:1.75rem; font-weight:700; letter-spacing:-0.01em; line-height:1.2;">Section Title Heading</div>
+    </div>
+    <div class="heading-demo">
+      <div class="meta">H3 · 700 · 1.35rem · -0.01em</div>
+      <div style="font-size:1.35rem; font-weight:700; letter-spacing:-0.01em; line-height:1.3;">Card Title Heading</div>
+    </div>
+    <div class="heading-demo">
+      <div class="meta">H4 · 600 · 1.05rem · 0</div>
+      <div style="font-size:1.05rem; font-weight:600; line-height:1.4;">Minor Heading</div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="meta" style="margin-bottom:8px; font-family:var(--font-mono); font-size:0.6rem; color:var(--text-muted);">Heading + Subtitle Pairing</div>
+      <div style="font-size:3rem; font-weight:800; letter-spacing:-0.015em; line-height:1.1;">Meet Athena OS</div>
+      <div style="font-size:1.5rem; font-weight:600; color:var(--text-muted); letter-spacing:-0.005em;">Build, deploy, and scale with confidence</div>
+    </div>
+  </div>
+
+  <div class="section" id="body-text">
+    <h3>Body Text</h3>
+    <div class="subtitle">Two sizes for primary and secondary content</div>
+    <div class="card">
+      <div class="meta" style="margin-bottom:8px; font-family:var(--font-mono); font-size:0.6rem; color:var(--text-muted);">Primary · 400 · 1rem · line-height 1.7</div>
+      <p style="margin-bottom:14px;">When you use one typeface across your entire product, visual hierarchy comes from weight and size rather than font contrast. This creates a cleaner, more unified feel — the interface recedes and the content speaks. The key is choosing a family with enough weights to create clear distinctions: <em>400 for body, 600 for emphasis, 700–800 for headings.</em></p>
+      <div class="meta" style="margin-bottom:8px; font-family:var(--font-mono); font-size:0.6rem; color:var(--text-muted);">Secondary · 400 · 0.88rem · line-height 1.65</div>
+      <p class="sm">Caption and helper text at smaller sizes should remain crisp. A well-designed sans-serif with a high x-height will stay legible down to 12px without losing character. This is where many fonts fall apart — if the small text reads well, the font is doing its job.</p>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============ COMPONENTS ============ -->
+
+  <div class="section" id="navigation">
+    <div class="section-label">Components</div>
+    <h2>Navigation</h2>
+    <div class="subtitle">Horizontal nav with brand, items, and active state</div>
+    <div class="nav-demo">
+      <span class="nav-brand">Athena OS</span>
+      <span class="nav-act">Overview</span>
+      <span>Analytics</span>
+      <span>Reports</span>
+      <span>Settings</span>
+      <span>Team</span>
+    </div>
+    <table class="data-table">
+      <tr><th>Element</th><th>Weight</th><th>Size</th><th>Color</th></tr>
+      <tr><td>Brand name</td><td class="mono">700</td><td class="mono">1rem</td><td>--text</td></tr>
+      <tr><td>Nav item</td><td class="mono">500</td><td class="mono">1rem</td><td>--text-muted</td></tr>
+      <tr><td>Active item</td><td class="mono">600</td><td class="mono">1rem</td><td>--blue</td></tr>
+    </table>
+  </div>
+
+  <div class="section" id="buttons">
+    <h2>Buttons &amp; Actions</h2>
+    <div class="subtitle">Four variants with consistent sizing</div>
+    <div class="btn-row">
+      <span class="btn primary">Get Started</span>
+      <span class="btn secondary">Learn More</span>
+      <span class="btn success">Approve</span>
+      <span class="btn danger">Delete Account</span>
+    </div>
+    <table class="data-table">
+      <tr><th>Variant</th><th>Background</th><th>Text</th><th>Weight</th><th>Size</th><th>Padding</th></tr>
+      <tr><td>Primary</td><td>--blue</td><td>#FFFFFF</td><td class="mono">600</td><td class="mono">0.88rem</td><td class="mono">10px 20px</td></tr>
+      <tr><td>Secondary</td><td>--surface-2</td><td>--text</td><td class="mono">600</td><td class="mono">0.88rem</td><td class="mono">10px 20px</td></tr>
+      <tr><td>Success</td><td>--green</td><td>#FFFFFF</td><td class="mono">600</td><td class="mono">0.88rem</td><td class="mono">10px 20px</td></tr>
+      <tr><td>Danger</td><td>--red</td><td>#FFFFFF</td><td class="mono">600</td><td class="mono">0.88rem</td><td class="mono">10px 20px</td></tr>
+    </table>
+  </div>
+
+  <div class="section" id="forms">
+    <h2>Form Elements</h2>
+    <div class="subtitle">Labels, inputs, and focus states</div>
+    <div class="card">
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label">Email address</label>
+          <input class="form-input" value="team@athena-os.com" readonly>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Organization</label>
+          <input class="form-input" value="Athena Systems Inc." readonly>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Role</label>
+          <input class="form-input" value="Administrator" readonly>
+        </div>
+      </div>
+    </div>
+    <table class="data-table">
+      <tr><th>Element</th><th>Weight</th><th>Size</th><th>Color</th></tr>
+      <tr><td>Field label</td><td class="mono">600</td><td class="mono">0.8rem</td><td>--text-muted</td></tr>
+      <tr><td>Input text</td><td class="mono">400</td><td class="mono">0.95rem</td><td>--text</td></tr>
+      <tr><td>Placeholder</td><td class="mono">400</td><td class="mono">0.95rem</td><td>--text-muted</td></tr>
+    </table>
+  </div>
+
+  <div class="section" id="kpis">
+    <h2>KPI / Metric Cards</h2>
+    <div class="subtitle">Mono values with semantic delta colors</div>
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-label">Active Users</div><div class="kpi-val">2,847</div><div class="kpi-delta" style="color:var(--green)">↑ 12.4%</div></div>
+      <div class="kpi"><div class="kpi-label">Revenue</div><div class="kpi-val">$18.7K</div><div class="kpi-delta" style="color:var(--green)">↑ 8.1%</div></div>
+      <div class="kpi"><div class="kpi-label">Avg Latency</div><div class="kpi-val">142ms</div><div class="kpi-delta" style="color:var(--yellow)">↑ 23ms</div></div>
+      <div class="kpi"><div class="kpi-label">Uptime</div><div class="kpi-val">99.97%</div><div class="kpi-delta" style="color:var(--text-muted)">— 0.00%</div></div>
+    </div>
+    <table class="data-table">
+      <tr><th>Element</th><th>Font</th><th>Weight</th><th>Size</th><th>Style</th></tr>
+      <tr><td>Label</td><td>Sans</td><td class="mono">600</td><td class="mono">0.7rem</td><td>Uppercase, 0.08em spacing</td></tr>
+      <tr><td>Value</td><td>Mono</td><td class="mono">700</td><td class="mono">1.5rem</td><td>-0.02em spacing</td></tr>
+      <tr><td>Delta</td><td>Mono</td><td class="mono">600</td><td class="mono">0.75rem</td><td>Semantic color</td></tr>
+    </table>
+  </div>
+
+  <div class="section" id="tables">
+    <h2>Data Tables</h2>
+    <div class="subtitle">Sans headers, mono data, no vertical borders</div>
+    <div class="card" style="padding:0; overflow:hidden;">
+      <table class="data-table" style="margin:0;">
+        <tr><th>Endpoint</th><th>Method</th><th>Calls (24h)</th><th>Avg Latency</th><th>Status</th></tr>
+        <tr><td>/v1/payments</td><td><span class="mono" style="color:var(--green)">POST</span></td><td class="mono">482,391</td><td class="mono">62ms</td><td style="color:var(--green)">● Healthy</td></tr>
+        <tr><td>/v1/customers</td><td><span class="mono" style="color:var(--blue)">GET</span></td><td class="mono">291,044</td><td class="mono">38ms</td><td style="color:var(--green)">● Healthy</td></tr>
+        <tr><td>/v1/subscriptions</td><td><span class="mono" style="color:var(--green)">POST</span></td><td class="mono">87,219</td><td class="mono">71ms</td><td style="color:var(--yellow)">● Elevated</td></tr>
+        <tr><td>/v1/webhooks</td><td><span class="mono" style="color:var(--purple)">PATCH</span></td><td class="mono">12,088</td><td class="mono">44ms</td><td style="color:var(--green)">● Healthy</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section" id="code">
+    <h2>Code Blocks</h2>
+    <div class="subtitle">JetBrains Mono with syntax-highlighted accent colors</div>
+    <div class="code-block"><span class="cc">// Create a payment intent</span>
+<span class="ck">const</span> <span class="cv">intent</span> = <span class="ck">await</span> <span class="cv">stripe</span>.<span class="cv">paymentIntents</span>.<span class="cf">create</span>({
+  <span class="cv">amount</span>: <span class="cn">2000</span>,
+  <span class="cv">currency</span>: <span class="cs">'usd'</span>,
+  <span class="cv">metadata</span>: { <span class="cv">order_id</span>: <span class="cs">'ord_1234'</span> },
+});
+<span class="cf">console</span>.<span class="cf">log</span>(<span class="cs">&#96;Created: &#36;{intent.id}&#96;</span>);</div>
+    <table class="data-table">
+      <tr><th>Token</th><th>Color</th><th>Variable</th></tr>
+      <tr><td>Keywords</td><td style="color:var(--green)">● Green</td><td class="mono">--green</td></tr>
+      <tr><td>Strings</td><td style="color:var(--cyan)">● Cyan</td><td class="mono">--cyan</td></tr>
+      <tr><td>Functions</td><td style="color:var(--orange)">● Orange</td><td class="mono">--orange</td></tr>
+      <tr><td>Numbers</td><td style="color:var(--purple)">● Purple</td><td class="mono">--purple</td></tr>
+      <tr><td>Variables</td><td style="color:var(--blue)">● Blue</td><td class="mono">--blue</td></tr>
+      <tr><td>Comments</td><td style="color:var(--text-muted)">● Muted</td><td class="mono">--text-muted</td></tr>
+    </table>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============ LAYOUT ============ -->
+
+  <div class="section" id="content-layout">
+    <div class="section-label">Layout</div>
+    <h2>Content + Sidebar</h2>
+    <div class="subtitle">Main content paired with a stats or summary panel</div>
+    <div class="sidebar-grid">
+      <div class="sidebar-card">
+        <h4>Getting started with the API</h4>
+        <p>Integrate payments in minutes with our client libraries and comprehensive documentation. Our SDKs are available in Python, Node.js, Ruby, Go, and Java — with built-in retry logic, idempotency keys, and webhook signature verification.</p>
+        <span class="link">Read the documentation →</span>
+      </div>
+      <div class="sidebar-card">
+        <h4>Quick stats</h4>
+        <ul>
+          <li><span>API calls (24h)</span><span class="val" style="color:var(--blue)">1.2M</span></li>
+          <li><span>Success rate</span><span class="val" style="color:var(--green)">99.8%</span></li>
+          <li><span>Avg response</span><span class="val">48ms</span></li>
+          <li><span>Active keys</span><span class="val">3</span></li>
+          <li><span>Webhooks</span><span class="val" style="color:var(--green)">Healthy</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" id="spacing">
+    <h2>Spacing Reference</h2>
+    <div class="subtitle">Consistent spacing tokens across all components</div>
+    <div class="spacing-grid">
+      <div class="spacing-item"><div class="spacing-bar" style="width:16px"></div><span>Card padding</span><span class="spacing-val">16–22px</span></div>
+      <div class="spacing-item"><div class="spacing-bar" style="width:12px"></div><span>Card radius</span><span class="spacing-val">10–16px</span></div>
+      <div class="spacing-item"><div class="spacing-bar" style="width:12px"></div><span>KPI gap</span><span class="spacing-val">12px</span></div>
+      <div class="spacing-item"><div class="spacing-bar" style="width:24px"></div><span>Section gap</span><span class="spacing-val">24px</span></div>
+      <div class="spacing-item"><div class="spacing-bar" style="width:24px"></div><span>Nav gap</span><span class="spacing-val">24px</span></div>
+      <div class="spacing-item"><div class="spacing-bar" style="width:14px"></div><span>Paragraph mb</span><span class="spacing-val">12–14px</span></div>
+      <div class="spacing-item"><div class="spacing-bar" style="width:4px"></div><span>Heading → subtitle</span><span class="spacing-val">0–4px</span></div>
+      <div class="spacing-item"><div class="spacing-bar" style="width:8px"></div><span>Heading mb</span><span class="spacing-val">8px</span></div>
+      <div class="spacing-item"><div class="spacing-bar" style="width:12px"></div><span>Section label → content</span><span class="spacing-val">12px</span></div>
+      <div class="spacing-item"><div class="spacing-bar" style="width:10px"></div><span>Button gap</span><span class="spacing-val">10px</span></div>
+      <div class="spacing-item"><div class="spacing-bar" style="width:14px"></div><span>Form field gap</span><span class="spacing-val">14px</span></div>
+      <div class="spacing-item"><div class="spacing-bar" style="width:4px"></div><span>Label → input</span><span class="spacing-val">4px</span></div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /page -->
+
+<div class="toast" id="toast">Copied!</div>
+
+<script>
+function copy(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const t = document.getElementById('toast');
+    t.textContent = 'Copied ' + text;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 1500);
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+site_name: ATHENA
+site_description: Agentic Toolkit for Holistic Economic Narratives and Analysis (ATHENA)
+site_url: https://wgryc.github.io/athena-os/
+repo_url: https://github.com/wgryc/athena-os
+repo_name: wgryc/athena-os
+
+theme:
+  name: material
+  palette:
+    # Light/dark mode toggle
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs          # Top-level sections as tabs
+    - navigation.sections      # Bold section headers in sidebar
+    - navigation.expand        # Expand sidebar sections by default
+    - search.suggest           # Search autocomplete
+    - content.code.copy        # Copy button on code blocks
+    - content.code.annotate    # Code annotations
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google        # or numpy, sphinx
+            show_source: true              # collapsible source code
+            show_root_heading: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source          # keep source order vs alphabetical
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences       # Nested code blocks, Mermaid diagrams
+  - pymdownx.tabbed:
+      alternate_style: true    # Content tabs
+  - admonition                 # Note/warning/tip callouts
+  - pymdownx.details           # Collapsible admonitions
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+  - Contributing: contributing.md
+  - API Reference:
+      - Core: reference/core.md
+      - Metrics: reference/metrics.md
+      - Pricing Data: reference/pricingdata.md
+      - Currency: reference/currency.md
+      - Risk-Free Rates: reference/riskfreerates.md
+      - Dashboard: reference/dashboard.md
+      - Agents: reference/agents.md
+      - CLI: reference/cli.md

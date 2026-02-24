@@ -1,0 +1,48 @@
+[project]
+name = "athenaos"
+version = "0.1.0"
+description = "ATHENA - Agentic Toolkit for Holistic Economic Narratives and Analysis"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas",
+    "numpy",
+    "jinja2",
+    "yfinance",
+    "openpyxl",
+    "python-dotenv",
+    "massive",
+    "anthropic",
+    "rich",
+    "litellm",
+    "scipy",
+    "databento",
+    "flask",
+    "python-telegram-bot",
+    "trafilatura",
+    "scrapingbee",
+    "google-search-results",
+    "tiktoken",
+    "edgartools",
+]
+
+[project.scripts]
+athenaos = "athena.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "mkdocs-material",
+    "mkdocstrings[python]",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"athena.dashboard" = ["templates/*.html"]
+"athena.agents" = ["templates/*.j2"]
+"athena.frontend" = ["templates/*.html", "static/*.css"]

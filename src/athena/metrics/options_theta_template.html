@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Options Theta Decay Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 0.95rem;
+            margin-top: 0.5rem;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 0.75rem;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 380px;
+        }
+
+        /* --- Per-option section --- */
+        .option-section {
+            margin-bottom: 2.5rem;
+        }
+
+        .option-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .option-header h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+
+        .option-metrics {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            font-size: 0.82rem;
+            color: #555;
+        }
+
+        .option-metrics span {
+            background: #f0f4f8;
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+
+        .option-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1.25rem;
+        }
+
+        @media (max-width: 1200px) {
+            .option-row {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .option-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* --- Portfolio section --- */
+        .portfolio-section {
+            margin-top: 3rem;
+            margin-bottom: 2rem;
+        }
+
+        .note {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 1.5rem;
+            line-height: 1.5;
+        }
+
+        footer {
+            margin-top: 2rem;
+            text-align: center;
+            color: #999;
+            font-size: 0.85rem;
+        }
+
+        /* Summary table */
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin-bottom: 2rem;
+        }
+
+        .summary-table th,
+        .summary-table td {
+            padding: 0.6rem 0.75rem;
+            text-align: right;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .summary-table th {
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            font-size: 0.72rem;
+            letter-spacing: 0.5px;
+            background: #f9fafb;
+        }
+
+        .summary-table td:first-child,
+        .summary-table th:first-child {
+            text-align: left;
+        }
+
+        .summary-table tbody tr:hover {
+            background: #f9fafb;
+        }
+
+        .pnl-pos { color: #10b981; }
+        .pnl-neg { color: #ef4444; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Options Theta Decay Analysis</h1>
+            <p class="subtitle" id="subtitle"></p>
+        </header>
+
+        <!-- Summary table -->
+        <div class="chart-card" style="margin-bottom: 2rem; overflow-x: auto;">
+            <h3 class="chart-title">Positions Summary</h3>
+            <table class="summary-table">
+                <thead>
+                    <tr>
+                        <th>Option</th>
+                        <th>Type</th>
+                        <th>Strike</th>
+                        <th>Expiry</th>
+                        <th>DTE</th>
+                        <th>Qty</th>
+                        <th>IV</th>
+                        <th>Purchased</th>
+                        <th>Current</th>
+                        <th>Intrinsic</th>
+                        <th>Time Value</th>
+                        <th>Theta/day</th>
+                    </tr>
+                </thead>
+                <tbody id="summaryBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Per-option charts (dynamically generated) -->
+        <div id="options-container"></div>
+
+        <!-- Portfolio timeline -->
+        <div class="portfolio-section">
+            <div class="chart-card">
+                <h3 class="chart-title">Portfolio Value (Cash + Options)</h3>
+                <div class="chart-container">
+                    <canvas id="portfolioChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <p class="note">
+            Theta decay curves assume the underlying stays at today's spot price,
+            isolating the pure time-value erosion. The "Historical (actual spot)"
+            series uses real underlying prices with the same IV to show the
+            mark-to-model path. IV is derived from each option's purchase price.
+            Realized volatility is 20-day rolling annualized. Portfolio NAV
+            includes remaining cash after option purchases.
+        </p>
+
+        <footer>
+            ATHENA Options Analytics
+        </footer>
+    </div>
+
+    <script>
+        const D = {{ data | safe }};
+
+        // --- Subtitle ---
+        const navStr = D.portfolio.initial_capital
+            ? ` | Initial capital: $${D.portfolio.initial_capital.toLocaleString()}`
+            : '';
+        document.getElementById('subtitle').textContent =
+            `Generated: ${D.generated_at} | ${D.options.length} position(s)${navStr}`;
+
+        // --- Summary Table ---
+        const summaryBody = document.getElementById('summaryBody');
+        D.options.forEach(opt => {
+            const pnl = opt.current_val - opt.purchase_price;
+            const pnlClass = pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${opt.underlying}</td>
+                <td>${opt.type_label}</td>
+                <td>$${opt.strike.toFixed(2)}</td>
+                <td>${opt.expiry}</td>
+                <td>${opt.dte}</td>
+                <td>${opt.quantity}</td>
+                <td>${opt.iv_pct}%</td>
+                <td>$${opt.purchase_price.toFixed(2)}</td>
+                <td class="${pnlClass}">$${opt.current_val.toFixed(2)}</td>
+                <td>$${opt.intrinsic.toFixed(2)}</td>
+                <td>$${opt.time_value.toFixed(2)}</td>
+                <td>$${opt.theta_1d.toFixed(4)}</td>
+            `;
+            summaryBody.appendChild(tr);
+        });
+
+        // --- Per-option charts ---
+        const container = document.getElementById('options-container');
+
+        D.options.forEach((opt, idx) => {
+            // Create option section
+            const section = document.createElement('div');
+            section.className = 'option-section';
+            section.innerHTML = `
+                <div class="option-header">
+                    <h2>${opt.underlying} ${opt.type_label} $${opt.strike.toFixed(2)} (exp ${opt.expiry})</h2>
+                    <div class="option-metrics">
+                        <span>Spot: $${opt.current_spot.toFixed(2)}</span>
+                        <span>IV: ${opt.iv_pct}%</span>
+                        <span>DTE: ${opt.dte}</span>
+                        <span>Value: $${opt.current_val.toFixed(2)}</span>
+                        <span>&theta;: $${opt.theta_1d.toFixed(4)}/day</span>
+                        <span>Qty: ${opt.quantity}</span>
+                    </div>
+                </div>
+                <div class="option-row">
+                    <div class="chart-card">
+                        <h3 class="chart-title">Theta Decay + Historical Price</h3>
+                        <div class="chart-container">
+                            <canvas id="theta-${idx}"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3 class="chart-title">Pricing Surface (Time &times; Price)</h3>
+                        <div id="surface-${idx}" style="height: 380px;"></div>
+                    </div>
+                    <div class="chart-card">
+                        <h3 class="chart-title">IV vs Realized Volatility</h3>
+                        <div class="chart-container">
+                            <canvas id="vol-${idx}"></canvas>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(section);
+
+            // -------------------------------------------------------
+            // 1. Theta decay chart with historical overlay (Chart.js)
+            // -------------------------------------------------------
+            const thetaAnnotations = {
+                todayLine: {
+                    type: 'line',
+                    xMin: opt.today_date,
+                    xMax: opt.today_date,
+                    borderColor: '#f59e0b',
+                    borderWidth: 2,
+                    borderDash: [6, 4],
+                    label: {
+                        display: true,
+                        content: 'Today',
+                        position: 'start',
+                        backgroundColor: 'rgba(245, 158, 11, 0.85)',
+                        font: { size: 10 },
+                    },
+                },
+                purchaseLine: {
+                    type: 'line',
+                    yMin: opt.purchase_price,
+                    yMax: opt.purchase_price,
+                    borderColor: '#10b981',
+                    borderWidth: 1.5,
+                    borderDash: [4, 4],
+                    label: {
+                        display: true,
+                        content: `Purchase: $${opt.purchase_price.toFixed(2)}`,
+                        position: 'end',
+                        backgroundColor: 'rgba(16, 185, 129, 0.85)',
+                        font: { size: 10 },
+                    },
+                },
+            };
+
+            // Build historical dataset aligned to theta curve labels
+            const histMap = {};
+            if (opt.historical && opt.historical.dates) {
+                opt.historical.dates.forEach((d, i) => { histMap[d] = opt.historical.values[i]; });
+            }
+            const histAligned = opt.theta_curve.dates.map(d => histMap[d] ?? null);
+
+            const thetaDatasets = [
+                {
+                    label: 'Theoretical (constant spot)',
+                    data: opt.theta_curve.values,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.06)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.15,
+                    pointRadius: 0,
+                },
+                {
+                    label: 'Historical (actual spot)',
+                    data: histAligned,
+                    borderColor: '#8b5cf6',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    borderDash: [],
+                    fill: false,
+                    tension: 0.15,
+                    pointRadius: 0,
+                    spanGaps: false,
+                },
+                {
+                    label: 'Intrinsic Value',
+                    data: opt.theta_curve.intrinsic,
+                    borderColor: '#9ca3af',
+                    backgroundColor: 'transparent',
+                    borderWidth: 1.5,
+                    borderDash: [5, 5],
+                    fill: false,
+                    pointRadius: 0,
+                },
+            ];
+
+            new Chart(document.getElementById(`theta-${idx}`), {
+                type: 'line',
+                data: {
+                    labels: opt.theta_curve.dates,
+                    datasets: thetaDatasets,
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: { usePointStyle: true, boxWidth: 8, font: { size: 10 } },
+                        },
+                        annotation: { annotations: thetaAnnotations },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: ctx => {
+                                    if (ctx.parsed.y == null) return null;
+                                    return `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`;
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            type: 'category',
+                            grid: { display: false },
+                            ticks: { maxTicksLimit: 6, font: { size: 9 } },
+                        },
+                        y: {
+                            grid: { color: '#f0f0f0' },
+                            ticks: {
+                                callback: v => '$' + v.toFixed(2),
+                                font: { size: 9 },
+                            },
+                        },
+                    },
+                },
+            });
+
+            // -------------------------------------------------------
+            // 2. 3D Pricing Surface (Plotly)
+            // -------------------------------------------------------
+            if (opt.surface.days.length > 0 && opt.surface.prices.length > 0) {
+                Plotly.newPlot(`surface-${idx}`, [{
+                    type: 'surface',
+                    x: opt.surface.days,
+                    y: opt.surface.prices,
+                    z: opt.surface.values,
+                    colorscale: 'Viridis',
+                    showscale: true,
+                    colorbar: {
+                        title: { text: 'Value ($)', font: { size: 10 } },
+                        thickness: 12,
+                        len: 0.75,
+                    },
+                    hovertemplate:
+                        'Day %{x}<br>Price: $%{y:.2f}<br>Value: $%{z:.2f}<extra></extra>',
+                    lighting: {
+                        roughness: 0.7,
+                        ambient: 0.65,
+                        diffuse: 0.5,
+                        specular: 0.15,
+                    },
+                    contours: {
+                        z: {
+                            show: true,
+                            usecolormap: true,
+                            project: { z: false },
+                            highlightcolor: '#fff',
+                            highlightwidth: 1,
+                        },
+                    },
+                }], {
+                    scene: {
+                        xaxis: {
+                            title: { text: 'Days from Purchase', font: { size: 10 } },
+                            tickfont: { size: 8 },
+                        },
+                        yaxis: {
+                            title: { text: 'Underlying ($)', font: { size: 10 } },
+                            tickfont: { size: 8 },
+                            tickprefix: '$',
+                        },
+                        zaxis: {
+                            title: { text: 'Option ($)', font: { size: 10 } },
+                            tickfont: { size: 8 },
+                            tickprefix: '$',
+                        },
+                        camera: {
+                            eye: { x: 1.6, y: -1.6, z: 0.9 },
+                        },
+                        bgcolor: '#fafafa',
+                    },
+                    margin: { l: 5, r: 5, t: 5, b: 5 },
+                    paper_bgcolor: 'white',
+                }, {
+                    responsive: true,
+                    displayModeBar: true,
+                    modeBarButtonsToRemove: ['toImage', 'sendDataToCloud'],
+                });
+            }
+
+            // -------------------------------------------------------
+            // 3. IV vs Realized Volatility (Chart.js)
+            // -------------------------------------------------------
+            const volData = opt.vol_comparison;
+            if (volData.dates.length > 0) {
+                // Implied vol as constant line aligned to realized vol dates
+                const ivLine = volData.dates.map(() => volData.implied_vol_pct);
+
+                new Chart(document.getElementById(`vol-${idx}`), {
+                    type: 'line',
+                    data: {
+                        labels: volData.dates,
+                        datasets: [
+                            {
+                                label: 'Realized Vol (20d)',
+                                data: volData.realized_vol,
+                                borderColor: '#ef4444',
+                                backgroundColor: 'rgba(239, 68, 68, 0.06)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.2,
+                                pointRadius: 0,
+                            },
+                            {
+                                label: `Implied Vol (${volData.implied_vol_pct}%)`,
+                                data: ivLine,
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'transparent',
+                                borderWidth: 2,
+                                borderDash: [6, 4],
+                                fill: false,
+                                pointRadius: 0,
+                            },
+                        ],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: { usePointStyle: true, boxWidth: 8, font: { size: 10 } },
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                callbacks: {
+                                    label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`,
+                                },
+                            },
+                        },
+                        scales: {
+                            x: {
+                                type: 'category',
+                                grid: { display: false },
+                                ticks: { maxTicksLimit: 6, font: { size: 9 } },
+                            },
+                            y: {
+                                grid: { color: '#f0f0f0' },
+                                ticks: {
+                                    callback: v => v.toFixed(0) + '%',
+                                    font: { size: 9 },
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Annualized Vol (%)',
+                                    color: '#666',
+                                    font: { size: 10 },
+                                },
+                            },
+                        },
+                    },
+                });
+            } else {
+                // No vol data — show placeholder
+                document.getElementById(`vol-${idx}`).parentElement.innerHTML =
+                    '<p style="color:#999; text-align:center; padding:3rem 1rem;">Insufficient historical data for volatility comparison</p>';
+            }
+        });
+
+        // --- Portfolio Timeline Chart ---
+        if (D.portfolio.dates.length > 0) {
+            const portfolioAnnotations = {};
+            if (D.portfolio.today_date) {
+                portfolioAnnotations.todayLine = {
+                    type: 'line',
+                    xMin: D.portfolio.today_date,
+                    xMax: D.portfolio.today_date,
+                    borderColor: '#f59e0b',
+                    borderWidth: 2.5,
+                    borderDash: [8, 4],
+                    label: {
+                        display: true,
+                        content: 'Today',
+                        position: 'start',
+                        backgroundColor: 'rgba(245, 158, 11, 0.9)',
+                        font: { size: 12, weight: 'bold' },
+                    },
+                };
+            }
+            if (D.portfolio.initial_capital) {
+                portfolioAnnotations.capitalLine = {
+                    type: 'line',
+                    yMin: D.portfolio.initial_capital,
+                    yMax: D.portfolio.initial_capital,
+                    borderColor: '#9ca3af',
+                    borderWidth: 1.5,
+                    borderDash: [6, 4],
+                    label: {
+                        display: true,
+                        content: `Initial: $${D.portfolio.initial_capital.toLocaleString()}`,
+                        position: 'start',
+                        backgroundColor: 'rgba(156, 163, 175, 0.85)',
+                        font: { size: 10 },
+                    },
+                };
+            }
+
+            new Chart(document.getElementById('portfolioChart'), {
+                type: 'line',
+                data: {
+                    labels: D.portfolio.dates,
+                    datasets: [
+                        {
+                            label: 'Total NAV',
+                            data: D.portfolio.total_nav,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                            borderWidth: 2.5,
+                            fill: true,
+                            tension: 0.15,
+                            pointRadius: 0,
+                        },
+                        {
+                            label: 'Options Value',
+                            data: D.portfolio.options_value,
+                            borderColor: '#8b5cf6',
+                            backgroundColor: 'transparent',
+                            borderWidth: 1.5,
+                            borderDash: [4, 4],
+                            fill: false,
+                            tension: 0.15,
+                            pointRadius: 0,
+                        },
+                        {
+                            label: 'Cash',
+                            data: D.portfolio.cash,
+                            borderColor: '#10b981',
+                            backgroundColor: 'transparent',
+                            borderWidth: 1.5,
+                            borderDash: [6, 4],
+                            fill: false,
+                            tension: 0,
+                            pointRadius: 0,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: { usePointStyle: true, boxWidth: 10, font: { size: 11 } },
+                        },
+                        annotation: { annotations: portfolioAnnotations },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: ctx => {
+                                    const v = ctx.parsed.y;
+                                    return `${ctx.dataset.label}: $${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            type: 'category',
+                            grid: { display: false },
+                            ticks: { maxTicksLimit: 12, font: { size: 10 } },
+                        },
+                        y: {
+                            grid: { color: '#f0f0f0' },
+                            ticks: {
+                                callback: v => '$' + v.toLocaleString(),
+                                font: { size: 10 },
+                            },
+                        },
+                    },
+                },
+            });
+        }
+    </script>
+</body>
+</html>

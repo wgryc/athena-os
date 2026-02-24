@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ underlying }} Options-Implied Forward Curve</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 0.95rem;
+            margin-top: 0.5rem;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .metric-label {
+            font-size: 0.85rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-value {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 1rem;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+        }
+
+        .chart-container-sm {
+            position: relative;
+            height: 300px;
+        }
+
+        .two-col {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 0.6rem 0.75rem;
+            text-align: right;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .data-table th {
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+            background: #f9fafb;
+        }
+
+        .data-table td:first-child,
+        .data-table th:first-child {
+            text-align: left;
+        }
+
+        .data-table tbody tr:hover {
+            background: #f9fafb;
+        }
+
+        .table-scroll {
+            overflow-x: auto;
+        }
+
+        .note {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 1.5rem;
+            line-height: 1.5;
+        }
+
+        footer {
+            margin-top: 2rem;
+            text-align: center;
+            color: #999;
+            font-size: 0.85rem;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .chart-header .chart-title {
+            margin-bottom: 0;
+        }
+
+        .toggle-group {
+            display: flex;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            overflow: hidden;
+            font-size: 0.8rem;
+        }
+
+        .toggle-group button {
+            padding: 0.35rem 0.75rem;
+            border: none;
+            background: white;
+            color: #666;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-family: inherit;
+        }
+
+        .toggle-group button.active {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .toggle-group button:not(:last-child) {
+            border-right: 1px solid #d1d5db;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{{ underlying }} Options-Implied Forward Curve</h1>
+            <p class="subtitle" id="subtitle"></p>
+        </header>
+
+        <section class="metrics-grid" id="metricsGrid"></section>
+
+        <section class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">Implied Forward Price Curve</h3>
+                    <div class="toggle-group" id="spacingToggle">
+                        <button class="active" data-mode="equidistant">Equidistant</button>
+                        <button data-mode="time">Time-scaled</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="forwardCurveChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">ATM Implied Volatility Term Structure</h3>
+                </div>
+                <div class="chart-container-sm">
+                    <canvas id="ivTermChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3 class="chart-title">Expiration Summary</h3>
+                <div class="table-scroll">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Expiration</th>
+                                <th>Days</th>
+                                <th>Forward</th>
+                                <th>ATM IV</th>
+                                <th>Exp. Move</th>
+                                <th>10th</th>
+                                <th>25th</th>
+                                <th>Median</th>
+                                <th>75th</th>
+                                <th>90th</th>
+                                <th>Strikes</th>
+                                <th>R&sup2;</th>
+                            </tr>
+                        </thead>
+                        <tbody id="summaryTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <p class="note">
+            The implied forward prices and confidence intervals are derived from
+            risk-neutral option pricing (Breeden-Litzenberger method). The distribution
+            embeds a volatility risk premium and may overstate tail probabilities
+            relative to historical outcomes. Only OTM options are used to mitigate
+            American exercise bias.
+        </p>
+
+        <footer>
+            ATHENA Options Analytics
+        </footer>
+    </div>
+
+    <script>
+        const D = {{ data | safe }};
+
+        // --- Subtitle ---
+        document.getElementById('subtitle').textContent =
+            `Spot: $${D.spot.toFixed(2)} | Generated: ${D.generated_at} | Risk-neutral distribution (Breeden-Litzenberger)`;
+
+        // --- Metrics (use first non-today row) ---
+        const nearest = D.summary.find(r => r.days > 0) || D.summary[0];
+        if (nearest) {
+            document.getElementById('metricsGrid').innerHTML = `
+                <div class="metric-card">
+                    <div class="metric-label">Current Spot</div>
+                    <div class="metric-value">$${D.spot.toFixed(2)}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Nearest Forward (${nearest.days}d)</div>
+                    <div class="metric-value">$${nearest.forward.toFixed(2)}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Expected Move (${nearest.days}d)</div>
+                    <div class="metric-value">&plusmn;${(nearest.expected_move_pct * 100).toFixed(1)}%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">ATM IV (${nearest.days}d)</div>
+                    <div class="metric-value">${nearest.atm_iv ? (nearest.atm_iv * 100).toFixed(1) + '%' : 'N/A'}</div>
+                </div>
+            `;
+        }
+
+        // --- Helpers for time-based mode ---
+        // Map days -> date label for x-axis ticks in linear mode
+        const baseDate = new Date(D.curve.labels[0]);
+        function daysToLabel(days) {
+            const d = new Date(baseDate);
+            d.setDate(d.getDate() + days);
+            return d.toISOString().slice(0, 10);
+        }
+
+        // Build {x, y} point arrays for linear mode
+        function toXY(yArr) {
+            return yArr.map((v, i) => ({ x: D.curve.days[i], y: v }));
+        }
+
+        // --- Forward Curve dataset definitions (shared, data swapped per mode) ---
+        function fwdDatasets(mode) {
+            const d = (arr) => mode === 'time' ? toXY(arr) : arr;
+            return [
+                {
+                    label: '10th-90th percentile',
+                    data: d(D.curve.p90),
+                    borderColor: 'transparent',
+                    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                    fill: '+1',
+                    pointRadius: 0,
+                    order: 5,
+                },
+                {
+                    label: '_p10',
+                    data: d(D.curve.p10),
+                    borderColor: 'rgba(59, 130, 246, 0.15)',
+                    borderWidth: 1,
+                    borderDash: [3, 3],
+                    backgroundColor: 'transparent',
+                    fill: false,
+                    pointRadius: 0,
+                    order: 4,
+                },
+                {
+                    label: '25th-75th percentile',
+                    data: d(D.curve.p75),
+                    borderColor: 'transparent',
+                    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                    fill: '+1',
+                    pointRadius: 0,
+                    order: 3,
+                },
+                {
+                    label: '_p25',
+                    data: d(D.curve.p25),
+                    borderColor: 'rgba(59, 130, 246, 0.3)',
+                    borderWidth: 1,
+                    borderDash: [3, 3],
+                    backgroundColor: 'transparent',
+                    fill: false,
+                    pointRadius: 0,
+                    order: 3,
+                },
+                {
+                    label: 'Implied Forward',
+                    data: d(D.curve.forwards),
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2.5,
+                    tension: 0.2,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#3b82f6',
+                    order: 1,
+                },
+                {
+                    label: 'Median (50th)',
+                    data: d(D.curve.p50),
+                    borderColor: '#10b981',
+                    backgroundColor: 'transparent',
+                    borderWidth: 1.5,
+                    borderDash: [6, 3],
+                    tension: 0.2,
+                    pointRadius: 0,
+                    order: 2,
+                },
+            ];
+        }
+
+        // Tooltip that looks up D.summary by dataIndex
+        function fwdTooltip() {
+            return {
+                mode: 'index',
+                intersect: false,
+                callbacks: {
+                    title: function(items) {
+                        const idx = items[0].dataIndex;
+                        const row = D.summary[idx];
+                        return row ? `${row.expiration}  (${row.days} days)` : items[0].label;
+                    },
+                    label: function() { return null; },
+                    afterBody: function(items) {
+                        const idx = items[0].dataIndex;
+                        const row = D.summary[idx];
+                        if (!row) return [];
+                        const iv = row.atm_iv ? (row.atm_iv * 100).toFixed(1) + '%' : 'N/A';
+                        return [
+                            `Forward:        $${row.forward.toFixed(2)}`,
+                            `Median (p50):   $${row.p50.toFixed(2)}`,
+                            `ATM IV:         ${iv}`,
+                            `Exp. Move:      ±$${row.expected_move.toFixed(2)} (${(row.expected_move_pct * 100).toFixed(1)}%)`,
+                            ``,
+                            `90th:           $${row.p90.toFixed(2)}`,
+                            `75th:           $${row.p75.toFixed(2)}`,
+                            `25th:           $${row.p25.toFixed(2)}`,
+                            `10th:           $${row.p10.toFixed(2)}`,
+                            ``,
+                            `Strikes: ${row.n_strikes}   R²: ${row.r2.toFixed(3)}`,
+                        ];
+                    },
+                },
+            };
+        }
+
+        function fwdXScale(mode) {
+            if (mode === 'time') {
+                return {
+                    type: 'linear',
+                    grid: { display: false },
+                    ticks: {
+                        callback: (v) => daysToLabel(v),
+                        maxTicksLimit: 12,
+                    },
+                    title: {
+                        display: true,
+                        text: 'Days to expiration',
+                        color: '#666',
+                    },
+                };
+            }
+            return {
+                type: 'category',
+                grid: { display: false },
+                ticks: { maxTicksLimit: 12 },
+            };
+        }
+
+        function buildFwdChart(mode) {
+            return new Chart(document.getElementById('forwardCurveChart'), {
+                type: 'line',
+                data: {
+                    labels: mode === 'time' ? undefined : D.curve.labels,
+                    datasets: fwdDatasets(mode),
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                filter: (item) => !item.text.startsWith('_'),
+                                usePointStyle: true,
+                                boxWidth: 12,
+                            },
+                        },
+                        annotation: {
+                            annotations: {
+                                spotLine: {
+                                    type: 'line',
+                                    yMin: D.spot,
+                                    yMax: D.spot,
+                                    borderColor: '#ef4444',
+                                    borderWidth: 1.5,
+                                    borderDash: [6, 4],
+                                    label: {
+                                        display: true,
+                                        content: `Spot: $${D.spot.toFixed(2)}`,
+                                        position: 'start',
+                                        backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                                        font: { size: 11 },
+                                    },
+                                },
+                            },
+                        },
+                        tooltip: fwdTooltip(),
+                    },
+                    scales: {
+                        x: fwdXScale(mode),
+                        y: {
+                            grid: { color: '#f0f0f0' },
+                            ticks: {
+                                callback: (v) => '$' + v.toLocaleString(),
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        // --- Create initial chart (equidistant) ---
+        let fwdChart = buildFwdChart('equidistant');
+
+        // --- Toggle handler ---
+        document.getElementById('spacingToggle').addEventListener('click', function(e) {
+            const btn = e.target.closest('button[data-mode]');
+            if (!btn) return;
+            const mode = btn.dataset.mode;
+            this.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            fwdChart.destroy();
+            fwdChart = buildFwdChart(mode);
+        });
+
+        // --- IV Term Structure Chart ---
+        if (D.term_structure.labels.length > 0) {
+            new Chart(document.getElementById('ivTermChart'), {
+                type: 'line',
+                data: {
+                    labels: D.term_structure.labels,
+                    datasets: [{
+                        label: 'ATM Implied Volatility',
+                        data: D.term_structure.atm_ivs,
+                        borderColor: '#8b5cf6',
+                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                        fill: true,
+                        tension: 0.2,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#8b5cf6',
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => ctx.parsed.y.toFixed(1) + '%',
+                            }
+                        },
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { maxTicksLimit: 12 },
+                        },
+                        y: {
+                            grid: { color: '#f0f0f0' },
+                            ticks: {
+                                callback: (v) => v.toFixed(0) + '%',
+                            },
+                            title: {
+                                display: true,
+                                text: 'Annualized IV (%)',
+                                color: '#666',
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        // --- Summary Table ---
+        const tbody = document.getElementById('summaryTableBody');
+        D.summary.forEach(row => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${row.expiration}</td>
+                <td>${row.days}</td>
+                <td>$${row.forward.toFixed(2)}</td>
+                <td>${row.atm_iv ? (row.atm_iv * 100).toFixed(1) + '%' : 'N/A'}</td>
+                <td>&plusmn;$${row.expected_move.toFixed(2)} (${(row.expected_move_pct * 100).toFixed(1)}%)</td>
+                <td>$${row.p10.toFixed(2)}</td>
+                <td>$${row.p25.toFixed(2)}</td>
+                <td>$${row.p50.toFixed(2)}</td>
+                <td>$${row.p75.toFixed(2)}</td>
+                <td>$${row.p90.toFixed(2)}</td>
+                <td>${row.n_strikes}</td>
+                <td>${row.r2.toFixed(3)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    </script>
+</body>
+</html>
