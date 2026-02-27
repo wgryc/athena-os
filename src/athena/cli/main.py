@@ -52,12 +52,14 @@ Examples:
     from .demo import register_subcommand as register_demo
     from .dashboard import register_subcommand as register_dashboard
     from .frontend import register_subcommand as register_frontend
+    from .version import register_subcommand as register_version
 
     register_report(subparsers)
     register_metrics(subparsers)
     register_demo(subparsers)
     register_dashboard(subparsers)
     register_frontend(subparsers)
+    register_version(subparsers)
 
     # Parse arguments
     args = parser.parse_args()

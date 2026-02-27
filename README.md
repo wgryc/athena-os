@@ -1,4 +1,4 @@
-# Agentic Toolkit for Holistic Economic Narratives and Analysis (ATHENA, v0.1.0)
+# Agentic Toolkit for Holistic Economic Narratives and Analysis (ATHENA, v0.1.1)
 
 Track your portfolio, individual positions, forex, and other financial instruments in one place. Pull data from the Federal Reserve, Yahoo! Finance, and custom sources. Track metrics to benchmark yourself against hedge funds. Use LLMs to manage your portfolio.
 

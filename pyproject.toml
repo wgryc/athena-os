@@ -1,6 +1,6 @@
 [project]
 name = "athenaos"
-version = "0.1.0"
+version = "0.1.1"
 description = "ATHENA - Agentic Toolkit for Holistic Economic Narratives and Analysis"
 requires-python = ">=3.10"
 dependencies = [
