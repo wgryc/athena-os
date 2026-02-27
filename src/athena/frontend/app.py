@@ -60,14 +60,20 @@ def _load_config(config_path: Path) -> dict:
             same directory if the primary file does not exist.
 
     Returns:
-        Parsed configuration dict, or empty dict on missing/invalid file.
+        Parsed configuration dict. If no config file is found, returns a
+        default layout with portfolio_summary and portfolio_value_chart widgets.
     """
     path = config_path
     if not path.exists():
         # Fall back to widgets.json for backwards compatibility
         path = config_path.parent / "widgets.json"
     if not path.exists():
-        return {}
+        return {
+            "widgets": [
+                [{"tool": "portfolio_summary_widget"}],
+                [{"tool": "portfolio_value_chart_widget"}],
+            ]
+        }
 
     try:
         data = json.loads(path.read_text())
