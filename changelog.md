@@ -7,7 +7,7 @@
     - Added support for compacting chats to avoid running out of context window. The Python code has a `COMPACT_ON_NUM_TOKENS` variable for when this should be run. Upon reaching the amount, the chat is compacted before continuing.
     - The LLM recieves `SYSTEM INFO` when it receives a message. Right now this only includes a timestamp, but can include additional information about the chat.
 - You can now download the "debug log" via the frontend.
-
+- `config.json` can now be edited via the frontend.
 
 # Change Log for v0.1.0
 

@@ -3,6 +3,7 @@
     "portfolio_description": "Sample portfolio that properly tracks various companies and investments, including dividends and interest from savings accounts.",
     "tasks_file": "tasks.xlsx",
     "show_investing_warning": true,
+    "frontend_llm_chat_style": "",
     "widgets": [
         [
             {
@@ -22,5 +23,11 @@
                 "tool": "sharpe_ratio_chart_widget"
             }
         ]
-    ]
+    ],
+    "gateways": {
+        "telegram": {
+            "bot_token": "replace_with_your_bot_token",
+            "chat_id": 123456789
+        }
+    }
 }

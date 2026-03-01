@@ -1848,6 +1848,141 @@ body.light #theme-toggle-btn .icon-sun  { display: none; }
     justify-content: center;
 }
 
+/* ===== SETTINGS MODAL ===== */
+.settings-modal {
+    max-width: 560px;
+}
+
+.settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.settings-section {
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.settings-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.settings-section h3 {
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--blue);
+    margin-bottom: 12px;
+}
+
+.settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 14px;
+}
+
+.settings-field:last-child {
+    margin-bottom: 0;
+}
+
+.settings-field label {
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.settings-field input[type="text"],
+.settings-field input[type="password"],
+.settings-field textarea {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    font-weight: 400;
+    transition: border-color 0.2s;
+    resize: vertical;
+}
+
+.settings-field input[type="text"]:focus,
+.settings-field input[type="password"]:focus,
+.settings-field textarea:focus {
+    outline: none;
+    border-color: var(--blue);
+}
+
+.settings-hint {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.settings-field-row {
+    flex-direction: row;
+    align-items: center;
+}
+
+.settings-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 0.88rem;
+    font-weight: 400;
+    color: var(--text);
+}
+
+.settings-toggle-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--blue);
+    cursor: pointer;
+}
+
+.settings-save-status {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    align-self: center;
+}
+
+.settings-save-status.success {
+    color: var(--green);
+}
+
+.settings-save-status.error {
+    color: var(--red);
+}
+
+#settings-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 0.4rem 0.6rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#settings-btn:hover {
+    border-color: var(--blue);
+    color: var(--blue);
+}
+
 /* ===== ATHENA UI UTILITIES (alert / confirm / prompt) ===== */
 .athena-ui-modal {
     display: none;

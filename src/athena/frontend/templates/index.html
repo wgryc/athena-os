@@ -19,6 +19,11 @@
         <div class="logo">ATHENA</div>
         <div class="subtitle">Portfolio Analyst</div>
         <div class="spacer"></div>
+        <button id="chat-toggle-btn" title="Toggle AI Chat">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+        </button>
         <button id="theme-toggle-btn" title="Toggle light/dark mode">
             <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="5"></circle>
@@ -35,9 +40,10 @@
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
             </svg>
         </button>
-        <button id="chat-toggle-btn" title="Toggle AI Chat">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        <button id="settings-btn" title="Settings">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
             </svg>
         </button>
     </header>
@@ -248,6 +254,72 @@
             <div class="modal-footer">
                 <button id="we-cancel" class="btn-secondary">Cancel</button>
                 <button id="we-save" class="btn-primary">Save &amp; Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Settings Modal ──────────────────────────── -->
+    <div id="settings-overlay" class="modal-overlay" style="display:none;">
+        <div class="modal-panel settings-modal">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button id="settings-close" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-form">
+                    <div class="settings-section">
+                        <h3>Portfolio</h3>
+                        <div class="settings-field">
+                            <label for="setting-portfolio-file">Portfolio File</label>
+                            <input type="text" id="setting-portfolio-file" placeholder="sample_transactions.xlsx">
+                            <span class="settings-hint">Path to your transactions Excel file.</span>
+                        </div>
+                        <div class="settings-field">
+                            <label for="setting-portfolio-desc">Portfolio Description</label>
+                            <textarea id="setting-portfolio-desc" rows="3" placeholder="Describe your portfolio for the AI assistant..."></textarea>
+                            <span class="settings-hint">Provides context to the AI when answering questions about your portfolio.</span>
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <h3>Tasks</h3>
+                        <div class="settings-field">
+                            <label for="setting-tasks-file">Tasks File</label>
+                            <input type="text" id="setting-tasks-file" placeholder="tasks.xlsx">
+                            <span class="settings-hint">Path to the scheduled tasks Excel file.</span>
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <h3>AI Chat</h3>
+                        <div class="settings-field">
+                            <label for="setting-chat-style">Chat Style Instructions</label>
+                            <textarea id="setting-chat-style" rows="3" placeholder="e.g. Respond in a formal tone, use bullet points..."></textarea>
+                            <span class="settings-hint">Custom instructions that shape the AI assistant's personality and response style.</span>
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <h3>Gateways</h3>
+                        <div class="settings-field">
+                            <label for="setting-telegram-token">Telegram Bot Token</label>
+                            <input type="password" id="setting-telegram-token" placeholder="123456789:ABCdefGHI...">
+                            <span class="settings-hint">Bot token from @BotFather. Restart required after changing.</span>
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <h3>General</h3>
+                        <div class="settings-field settings-field-row">
+                            <label class="settings-toggle-label" for="setting-investing-warning">
+                                <input type="checkbox" id="setting-investing-warning">
+                                <span>Show investing disclaimer on startup</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span id="settings-status" class="settings-save-status"></span>
+                <div class="spacer"></div>
+                <button id="settings-cancel" class="btn-secondary">Cancel</button>
+                <button id="settings-save" class="btn-primary">Save</button>
             </div>
         </div>
     </div>
@@ -1365,6 +1437,81 @@
         if (!e.target.classList?.contains('th-tip')) return;
         if (tipPopup) { tipPopup.remove(); tipPopup = null; }
     }, true);
+
+    /* ===== Settings Modal ===== */
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsOverlay = document.getElementById('settings-overlay');
+    const settingsCloseBtn = document.getElementById('settings-close');
+    const settingsCancelBtn = document.getElementById('settings-cancel');
+    const settingsSaveBtn = document.getElementById('settings-save');
+    const settingsStatus = document.getElementById('settings-status');
+
+    // Field references
+    const sPortfolioFile = document.getElementById('setting-portfolio-file');
+    const sPortfolioDesc = document.getElementById('setting-portfolio-desc');
+    const sTasksFile = document.getElementById('setting-tasks-file');
+    const sChatStyle = document.getElementById('setting-chat-style');
+    const sTelegramToken = document.getElementById('setting-telegram-token');
+    const sInvestingWarning = document.getElementById('setting-investing-warning');
+
+    async function openSettings() {
+        settingsStatus.textContent = '';
+        try {
+            const res = await fetch('/api/config');
+            const cfg = await res.json();
+            sPortfolioFile.value = cfg.portfolio_file || '';
+            sPortfolioDesc.value = cfg.portfolio_description || '';
+            sTasksFile.value = cfg.tasks_file || '';
+            sChatStyle.value = cfg.frontend_llm_chat_style || '';
+            sTelegramToken.value = cfg.telegram_bot_token || '';
+            sInvestingWarning.checked = cfg.show_investing_warning !== false;
+        } catch (e) {
+            console.error('Failed to load config:', e);
+        }
+        settingsOverlay.style.display = 'flex';
+    }
+
+    function closeSettings() {
+        settingsOverlay.style.display = 'none';
+    }
+
+    async function saveSettings() {
+        settingsSaveBtn.disabled = true;
+        settingsStatus.textContent = 'Saving...';
+        settingsStatus.className = 'settings-save-status';
+        try {
+            const body = {
+                portfolio_file: sPortfolioFile.value.trim(),
+                portfolio_description: sPortfolioDesc.value.trim(),
+                tasks_file: sTasksFile.value.trim(),
+                frontend_llm_chat_style: sChatStyle.value.trim(),
+                telegram_bot_token: sTelegramToken.value.trim(),
+                show_investing_warning: sInvestingWarning.checked,
+            };
+            const res = await fetch('/api/config', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (!res.ok) throw new Error('Save failed');
+            settingsStatus.textContent = 'Saved';
+            settingsStatus.classList.add('success');
+            setTimeout(closeSettings, 600);
+        } catch (e) {
+            settingsStatus.textContent = 'Error saving settings';
+            settingsStatus.classList.add('error');
+        } finally {
+            settingsSaveBtn.disabled = false;
+        }
+    }
+
+    settingsBtn.addEventListener('click', openSettings);
+    settingsCloseBtn.addEventListener('click', closeSettings);
+    settingsCancelBtn.addEventListener('click', closeSettings);
+    settingsSaveBtn.addEventListener('click', saveSettings);
+    settingsOverlay.addEventListener('click', (e) => {
+        if (e.target === settingsOverlay) closeSettings();
+    });
 
     /* ===== Investing Warning Modal ===== */
     const warningOverlay = document.getElementById('investing-warning-overlay');

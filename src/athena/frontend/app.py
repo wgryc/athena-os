@@ -1046,6 +1046,65 @@ def create_app(
 
         return {"status": "ok"}
 
+    # ── Settings API ──────────────────────────────────────
+
+    # Fields exposed in the settings UI (excludes widgets and gateways internals)
+    _SETTINGS_FIELDS = [
+        "portfolio_file",
+        "portfolio_description",
+        "tasks_file",
+        "show_investing_warning",
+        "frontend_llm_chat_style",
+    ]
+
+    @app.route("/api/config", methods=["GET"])
+    def config_get():
+        """Return current config settings (excluding widgets)."""
+        full = _load_config(config_path)
+        settings = {k: full.get(k, "") for k in _SETTINGS_FIELDS}
+        # Ensure boolean field defaults correctly
+        if settings["show_investing_warning"] == "":
+            settings["show_investing_warning"] = True
+        # Include gateway telegram bot_token if present
+        gateways = full.get("gateways", {})
+        tg = gateways.get("telegram", {})
+        settings["telegram_bot_token"] = tg.get("bot_token", "")
+        return settings
+
+    @app.route("/api/config", methods=["PUT"])
+    def config_put():
+        """Save settings to config.json (preserves widgets and other keys)."""
+        nonlocal portfolio_description, frontend_llm_chat_style
+        nonlocal show_investing_warning, tasks_file_path
+
+        data = request.get_json()
+        if not data:
+            return {"error": "Missing JSON body"}, 400
+
+        full = _load_config(config_path)
+
+        # Update simple fields
+        for key in _SETTINGS_FIELDS:
+            if key in data:
+                val = data[key]
+                if key == "show_investing_warning":
+                    val = bool(val)
+                full[key] = val
+
+        # Update telegram bot token
+        if "telegram_bot_token" in data:
+            full.setdefault("gateways", {}).setdefault("telegram", {})["bot_token"] = data["telegram_bot_token"]
+
+        config_path.write_text(json.dumps(full, indent=4) + "\n")
+
+        # Update in-memory state
+        portfolio_description = full.get("portfolio_description", "")
+        frontend_llm_chat_style = full.get("frontend_llm_chat_style", "")
+        show_investing_warning = full.get("show_investing_warning") is not False
+        tasks_file_path = full.get("tasks_file")
+
+        return {"status": "ok"}
+
     # ── Dashboard API ─────────────────────────────────────
 
     def _invalidate_dashboard():
