@@ -295,6 +295,16 @@
                             <textarea id="setting-chat-style" rows="3" placeholder="e.g. Respond in a formal tone, use bullet points..."></textarea>
                             <span class="settings-hint">Custom instructions that shape the AI assistant's personality and response style.</span>
                         </div>
+                        <div class="settings-field">
+                            <label for="setting-chat-file">Chat File</label>
+                            <input type="text" id="setting-chat-file" placeholder="chat.json">
+                            <span class="settings-hint">Path to save/load chat history. Leave empty to disable persistence.</span>
+                        </div>
+                        <div class="settings-field">
+                            <label for="setting-heartbeat">Heartbeat Interval (minutes)</label>
+                            <input type="number" id="setting-heartbeat" step="1" placeholder="-1">
+                            <span class="settings-hint">How often the AI reviews the chat and follows up. Set to -1 or 0 to disable.</span>
+                        </div>
                     </div>
                     <div class="settings-section">
                         <h3>Gateways</h3>
@@ -1451,6 +1461,8 @@
     const sPortfolioDesc = document.getElementById('setting-portfolio-desc');
     const sTasksFile = document.getElementById('setting-tasks-file');
     const sChatStyle = document.getElementById('setting-chat-style');
+    const sChatFile = document.getElementById('setting-chat-file');
+    const sHeartbeat = document.getElementById('setting-heartbeat');
     const sTelegramToken = document.getElementById('setting-telegram-token');
     const sInvestingWarning = document.getElementById('setting-investing-warning');
 
@@ -1463,6 +1475,8 @@
             sPortfolioDesc.value = cfg.portfolio_description || '';
             sTasksFile.value = cfg.tasks_file || '';
             sChatStyle.value = cfg.frontend_llm_chat_style || '';
+            sChatFile.value = cfg.chat_file || '';
+            sHeartbeat.value = cfg.heartbeat_interval_minutes ?? -1;
             sTelegramToken.value = cfg.telegram_bot_token || '';
             sInvestingWarning.checked = cfg.show_investing_warning !== false;
         } catch (e) {
@@ -1485,6 +1499,8 @@
                 portfolio_description: sPortfolioDesc.value.trim(),
                 tasks_file: sTasksFile.value.trim(),
                 frontend_llm_chat_style: sChatStyle.value.trim(),
+                chat_file: sChatFile.value.trim(),
+                heartbeat_interval_minutes: parseFloat(sHeartbeat.value) || -1,
                 telegram_bot_token: sTelegramToken.value.trim(),
                 show_investing_warning: sInvestingWarning.checked,
             };

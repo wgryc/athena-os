@@ -1901,6 +1901,7 @@ body.light #theme-toggle-btn .icon-sun  { display: none; }
 
 .settings-field input[type="text"],
 .settings-field input[type="password"],
+.settings-field input[type="number"],
 .settings-field textarea {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -1916,6 +1917,7 @@ body.light #theme-toggle-btn .icon-sun  { display: none; }
 
 .settings-field input[type="text"]:focus,
 .settings-field input[type="password"]:focus,
+.settings-field input[type="number"]:focus,
 .settings-field textarea:focus {
     outline: none;
     border-color: var(--blue);

@@ -4,6 +4,8 @@
     "tasks_file": "tasks.xlsx",
     "show_investing_warning": true,
     "frontend_llm_chat_style": "",
+    "chat_file": "chat.json",
+    "heartbeat_interval_minutes": -1,
     "widgets": [
         [
             {
@@ -23,11 +25,5 @@
                 "tool": "sharpe_ratio_chart_widget"
             }
         ]
-    ],
-    "gateways": {
-        "telegram": {
-            "bot_token": "replace_with_your_bot_token",
-            "chat_id": 123456789
-        }
-    }
+    ]
 }

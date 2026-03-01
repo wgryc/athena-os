@@ -8,6 +8,8 @@
     - The LLM recieves `SYSTEM INFO` when it receives a message. Right now this only includes a timestamp, but can include additional information about the chat.
 - You can now download the "debug log" via the frontend.
 - `config.json` can now be edited via the frontend.
+- Added "heartbeat_interval_minutes" to `config.json` (and frontend settings editor); this is when the LLM 'awakes' to review the chat and run any tasks it might choose to. This is not related to scheduled tasks but proactive outreach by the LLM.
+- The chat now persists across server restarts. You can also choose to save/share the chat -- saved as `chat.json` by default. The chat doesn't reload on the frontend but does get sent to the LLM.
 
 # Change Log for v0.1.0
 

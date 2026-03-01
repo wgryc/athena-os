@@ -195,6 +195,41 @@ def _compact_conversation(
         return messages[fallback_split:]
 
 
+def _save_chat(messages: list[dict], chat_path: Path) -> None:
+    """Persist the conversation messages to a JSON file.
+
+    Args:
+        messages: The conversation message list.
+        chat_path: Path to the chat JSON file.
+    """
+    try:
+        chat_path.write_text(json.dumps(messages, indent=2, default=str) + "\n")
+    except Exception as e:
+        print(f"[Chat] Failed to save chat: {e}", flush=True)
+
+
+def _load_chat(chat_path: Path) -> list[dict]:
+    """Load conversation messages from a JSON file.
+
+    Args:
+        chat_path: Path to the chat JSON file.
+
+    Returns:
+        List of conversation message dicts, or empty list if file
+        doesn't exist or is invalid.
+    """
+    if not chat_path.exists():
+        return []
+    try:
+        data = json.loads(chat_path.read_text())
+        if isinstance(data, list):
+            print(f"[Chat] Loaded {len(data)} message(s) from {chat_path}", flush=True)
+            return data
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"[Chat] Failed to load chat: {e}", flush=True)
+    return []
+
+
 def _load_config(config_path: Path) -> dict:
     """Load config.json, with backwards compatibility for widgets.json array format.
 
@@ -576,10 +611,19 @@ def create_app(
     portfolio_file_path: str | None = portfolio_file
     portfolio: Portfolio | None = None
     system_prompt: str = ""
-    conversation_messages: list[dict] = []
     conversation_lock = threading.Lock()
     cached_dashboard: dict | None = None
     _gateway_stream: dict | None = None  # {"source": "...", "content": "..."}
+
+    # ── Chat Persistence ────────────────────────────────
+    chat_file_path: str | None = config.get("chat_file")
+    chat_path: Path | None = Path(chat_file_path) if chat_file_path else None
+    conversation_messages: list[dict] = _load_chat(chat_path) if chat_path else []
+
+    def _persist_chat() -> None:
+        """Save conversation to disk if a chat file is configured."""
+        if chat_path is not None:
+            _save_chat(conversation_messages, chat_path)
 
     # ── Tasks ────────────────────────────────────────────
     tasks_file_path: str | None = config.get("tasks_file")
@@ -762,6 +806,7 @@ def create_app(
             conversation_messages[:] = _compact_conversation(
                 conversation_messages, system_prompt
             )
+            _persist_chat()
 
         litellm_messages = (
             [{"role": "system", "content": system_prompt}]
@@ -902,12 +947,14 @@ def create_app(
                     "_user_response": user_response,
                     "_is_silent": is_silent,
                 })
+                _persist_chat()
 
             except Exception as e:
                 error_msg = str(e)
                 yield f"data: {json.dumps({'type': 'error', 'content': error_msg})}\n\n"
                 if conversation_messages and conversation_messages[-1]["role"] == "user":
                     conversation_messages.pop()
+                _persist_chat()
 
         return Response(
             generate(),
@@ -922,6 +969,7 @@ def create_app(
     def reset():
         nonlocal conversation_messages
         conversation_messages = []
+        _persist_chat()
         return {"status": "ok"}
 
     @app.route("/api/chatlog")
@@ -1092,6 +1140,8 @@ def create_app(
         "tasks_file",
         "show_investing_warning",
         "frontend_llm_chat_style",
+        "chat_file",
+        "heartbeat_interval_minutes",
     ]
 
     @app.route("/api/config", methods=["GET"])
@@ -1102,6 +1152,9 @@ def create_app(
         # Ensure boolean field defaults correctly
         if settings["show_investing_warning"] == "":
             settings["show_investing_warning"] = True
+        # Ensure numeric field defaults
+        if settings["heartbeat_interval_minutes"] == "":
+            settings["heartbeat_interval_minutes"] = -1
         # Include gateway telegram bot_token if present
         gateways = full.get("gateways", {})
         tg = gateways.get("telegram", {})
@@ -1113,6 +1166,7 @@ def create_app(
         """Save settings to config.json (preserves widgets and other keys)."""
         nonlocal portfolio_description, frontend_llm_chat_style
         nonlocal show_investing_warning, tasks_file_path
+        nonlocal chat_file_path, chat_path, heartbeat_interval_minutes
 
         data = request.get_json()
         if not data:
@@ -1126,6 +1180,11 @@ def create_app(
                 val = data[key]
                 if key == "show_investing_warning":
                     val = bool(val)
+                elif key == "heartbeat_interval_minutes":
+                    try:
+                        val = float(val)
+                    except (TypeError, ValueError):
+                        val = -1
                 full[key] = val
 
         # Update telegram bot token
@@ -1139,6 +1198,14 @@ def create_app(
         frontend_llm_chat_style = full.get("frontend_llm_chat_style", "")
         show_investing_warning = full.get("show_investing_warning") is not False
         tasks_file_path = full.get("tasks_file")
+
+        # Update chat file path
+        new_chat_file = full.get("chat_file")
+        chat_file_path = new_chat_file
+        chat_path = Path(new_chat_file) if new_chat_file else None
+
+        # Update heartbeat interval (takes effect on next loop iteration)
+        heartbeat_interval_minutes = full.get("heartbeat_interval_minutes", -1)
 
         return {"status": "ok"}
 
@@ -1391,6 +1458,7 @@ def create_app(
                 conversation_messages[:] = _compact_conversation(
                     conversation_messages, system_prompt
                 )
+                _persist_chat()
 
             llm_messages = (
                 [{"role": "system", "content": system_prompt}]
@@ -1483,12 +1551,14 @@ def create_app(
                     "_user_response": user_response,
                     "_is_silent": is_silent,
                 })
+                _persist_chat()
             except Exception as e:
                 full_response = f"Error: {e}"
                 user_response = full_response
                 is_silent = False
                 if conversation_messages and conversation_messages[-1].get("source") == source:
                     conversation_messages.pop()
+                _persist_chat()
             finally:
                 _gateway_stream = None
 
@@ -1547,5 +1617,57 @@ def create_app(
             _scheduler.stop()
 
     atexit.register(_shutdown_scheduler)
+
+    # ── Heartbeat ─────────────────────────────────────────
+
+    heartbeat_interval_minutes: float = config.get("heartbeat_interval_minutes", -1)
+    _heartbeat_stop = threading.Event()
+    _heartbeat_thread: threading.Thread | None = None
+
+    _HEARTBEAT_PROMPT = (
+        "[Heartbeat Check-in]\n"
+        "Review our conversation so far. If there's anything you should "
+        "follow up on — pending questions, tasks you offered to do, "
+        "information you promised to look up, or anything the user might "
+        "find useful right now — go ahead and do it.\n\n"
+        "If there's nothing to follow up on, respond with NO_VISIBLE_MESSAGE."
+    )
+
+    def _heartbeat_loop() -> None:
+        """Periodically prompt the LLM to review the conversation."""
+        while not _heartbeat_stop.is_set():
+            interval = heartbeat_interval_minutes
+            if interval <= 0:
+                # Disabled — sleep a bit and re-check in case settings changed
+                _heartbeat_stop.wait(30)
+                continue
+
+            _heartbeat_stop.wait(interval * 60)
+            if _heartbeat_stop.is_set():
+                break
+
+            # Only run if there are messages in the conversation
+            if not conversation_messages:
+                continue
+
+            print(f"[Heartbeat] Running check-in (every {interval} min)", flush=True)
+            try:
+                process_gateway_message(_HEARTBEAT_PROMPT, "heartbeat")
+            except Exception as e:
+                print(f"[Heartbeat] Failed: {e}", flush=True)
+
+    _heartbeat_thread = threading.Thread(target=_heartbeat_loop, daemon=True)
+    _heartbeat_thread.start()
+    if heartbeat_interval_minutes > 0:
+        print(f"Heartbeat started (every {heartbeat_interval_minutes} minutes).")
+    else:
+        print("Heartbeat disabled (interval <= 0).")
+
+    def _shutdown_heartbeat():
+        _heartbeat_stop.set()
+        if _heartbeat_thread and _heartbeat_thread.is_alive():
+            _heartbeat_thread.join(timeout=5)
+
+    atexit.register(_shutdown_heartbeat)
 
     return app
