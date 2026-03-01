@@ -3,6 +3,7 @@
 import atexit
 import json
 import os
+import re
 import threading
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -50,6 +51,111 @@ load_dotenv()
 
 CHAT_MODEL = "anthropic/claude-opus-4-5"
 MAX_TOKENS = 16000
+COMPACT_ON_NUM_TOKENS = 80000
+
+_LITELLM_FIELDS = frozenset(("role", "content", "tool_calls", "tool_call_id"))
+
+
+def _strip_extra_fields(msg: dict) -> dict:
+    """Return a copy of *msg* keeping only fields recognized by litellm.
+
+    Args:
+        msg: A conversation message dict that may contain extra keys
+            (e.g. ``source``).
+
+    Returns:
+        New dict containing only the keys in ``_LITELLM_FIELDS``.
+    """
+    return {k: v for k, v in msg.items() if k in _LITELLM_FIELDS}
+
+
+def _estimate_token_count(messages: list[dict], system_prompt: str = "") -> int:
+    """Estimate the total token count of the conversation.
+
+    Args:
+        messages: The conversation message list.
+        system_prompt: The system prompt string.
+
+    Returns:
+        Estimated total token count.
+    """
+    try:
+        all_messages = [{"role": "system", "content": system_prompt}] + [
+            _strip_extra_fields(m) for m in messages
+        ]
+        return litellm.token_counter(model=CHAT_MODEL, messages=all_messages)
+    except Exception:
+        # Fallback heuristic: ~4 chars per token
+        total_chars = len(system_prompt)
+        for m in messages:
+            content = m.get("content") or ""
+            total_chars += len(content)
+            if m.get("tool_calls"):
+                total_chars += len(json.dumps(m["tool_calls"]))
+        return total_chars // 4
+
+
+def _compact_conversation(
+    messages: list[dict],
+    system_prompt: str,
+) -> list[dict]:
+    """Compact the conversation by asking the LLM to summarize it.
+
+    Preserves the most recent 4 messages for immediate context.
+    Falls back to keeping the last 20 messages on failure.
+
+    Args:
+        messages: Current conversation messages.
+        system_prompt: The system prompt (for context in summarization).
+
+    Returns:
+        New compacted message list.
+    """
+    preserve_count = 4
+    if len(messages) <= preserve_count:
+        return messages
+
+    messages_to_summarize = messages[:-preserve_count]
+    preserved = messages[-preserve_count:]
+
+    summary_request = [
+        {"role": "system", "content": (
+            "You are a conversation summarizer. Summarize the following conversation "
+            "into a concise but comprehensive summary. Preserve all important facts, "
+            "decisions, tool results, and context. This summary will replace the "
+            "original messages to manage context window size.\n\n"
+            "Format your summary as a clear, structured recap."
+        )},
+        {"role": "user", "content": (
+            "Summarize this conversation:\n\n"
+            + json.dumps([_strip_extra_fields(m) for m in messages_to_summarize], indent=2)
+        )},
+    ]
+
+    try:
+        response = litellm.completion(
+            model=CHAT_MODEL,
+            messages=summary_request,
+            max_tokens=4000,
+        )
+        summary_text = response.choices[0].message.content
+
+        compacted = [
+            {
+                "role": "assistant",
+                "content": f"[CONVERSATION SUMMARY]\n{summary_text}",
+                "_is_compaction": True,
+            }
+        ] + preserved
+
+        print(f"[Compaction] Reduced {len(messages)} messages to {len(compacted)} "
+              f"(summary + {len(preserved)} preserved)", flush=True)
+
+        return compacted
+
+    except Exception as e:
+        print(f"[Compaction] Failed: {e}", flush=True)
+        return messages[-20:]
 
 
 def _load_config(config_path: Path) -> dict:
@@ -158,20 +264,57 @@ def _build_widget_context(
     return "\n".join(lines)
 
 
-_LITELLM_FIELDS = frozenset(("role", "content", "tool_calls", "tool_call_id"))
-
-
-def _strip_extra_fields(msg: dict) -> dict:
-    """Return a copy of *msg* keeping only fields recognized by litellm.
+def _wrap_user_message(content: str, source: str = "web") -> str:
+    """Wrap user message content with system metadata.
 
     Args:
-        msg: A conversation message dict that may contain extra keys
-            (e.g. ``source``).
+        content: The raw user message text.
+        source: Message origin -- 'web', 'telegram', or 'scheduler'.
 
     Returns:
-        New dict containing only the keys in ``_LITELLM_FIELDS``.
+        Formatted string with [SYSTEM INFO] and [MESSAGE] sections.
     """
-    return {k: v for k, v in msg.items() if k in _LITELLM_FIELDS}
+    now = datetime.now(timezone.utc)
+    return (
+        f"[SYSTEM INFO]\n"
+        f"Current Date/Time: {now.strftime('%Y-%m-%d %H:%M UTC')}\n"
+        f"Source: {source}\n\n"
+        f"[MESSAGE]\n"
+        f"{content}"
+    )
+
+
+# Regex patterns for parsing structured LLM responses
+_THINKING_PATTERN = re.compile(
+    r"<INTERNAL_THINKING>(.*?)</INTERNAL_THINKING>",
+    re.DOTALL,
+)
+_RESPONSE_PATTERN = re.compile(
+    r"<RESPONSE_TO_USER>(.*?)</RESPONSE_TO_USER>",
+    re.DOTALL,
+)
+_NO_VISIBLE_MESSAGE = "NO_VISIBLE_MESSAGE"
+
+
+def _parse_llm_response(full_text: str) -> tuple[str, str, bool]:
+    """Parse structured LLM response into thinking and user-visible parts.
+
+    Args:
+        full_text: The complete LLM response text.
+
+    Returns:
+        Tuple of (thinking_text, response_text, is_silent).
+        If parsing fails, the entire text is treated as the response.
+    """
+    thinking_match = _THINKING_PATTERN.search(full_text)
+    response_match = _RESPONSE_PATTERN.search(full_text)
+
+    thinking = thinking_match.group(1).strip() if thinking_match else ""
+    response = response_match.group(1).strip() if response_match else full_text.strip()
+
+    is_silent = response == _NO_VISIBLE_MESSAGE
+
+    return thinking, response, is_silent
 
 
 def _build_system_prompt(
@@ -180,6 +323,7 @@ def _build_system_prompt(
     portfolio_file: str = "",
     portfolio_description: str = "",
     tasks: list | None = None,
+    frontend_llm_chat_style: str = "",
 ) -> str:
     """Build a system prompt containing portfolio context for the chat.
 
@@ -189,6 +333,7 @@ def _build_system_prompt(
         portfolio_file: Path to the portfolio Excel file (for display).
         portfolio_description: Human-readable portfolio description.
         tasks: Optional list of ``ScheduledTask`` objects to include.
+        frontend_llm_chat_style: Optional custom style/personality instructions.
 
     Returns:
         Complete system prompt string for the LLM.
@@ -259,7 +404,32 @@ ${total_value:,.2f} USD
 - You have access to tools that can fetch live stock prices. Use them when the user asks for \
 current or recent prices of specific tickers, especially for tickers not shown in the portfolio data above.
 - If the user has live widget data visible, you can reference those prices directly without needing to call tools.
-- The current date/time is {now.strftime('%Y-%m-%d %H:%M UTC')}."""
+
+## Message Format
+User messages are formatted with a [SYSTEM INFO] header containing the current date/time (UTC) and \
+message source (web, telegram, or scheduler), followed by a [MESSAGE] section with the actual content. \
+Always reference the [SYSTEM INFO] for the accurate current date and time.
+
+## Response Format
+IMPORTANT: Structure ALL of your responses using this exact format:
+
+<INTERNAL_THINKING>
+Your internal reasoning, research notes, analysis, tool call planning, and any other content \
+that should only be visible in the debug log. This section is never shown to the user.
+</INTERNAL_THINKING>
+
+<RESPONSE_TO_USER>
+The response that will be shown to the user in the chat interface and forwarded to \
+external messaging platforms like Telegram. Supports full markdown formatting.
+</RESPONSE_TO_USER>
+
+- You MUST always include both tags in every response, even if the INTERNAL_THINKING section is brief.
+- If you have nothing to say to the user (e.g., completing a background/scheduled task silently, \
+or a task where no user notification is needed), use exactly: \
+<RESPONSE_TO_USER>NO_VISIBLE_MESSAGE</RESPONSE_TO_USER>{f"""
+
+## Communication Style
+{frontend_llm_chat_style}""" if frontend_llm_chat_style else ""}"""
 
 
 def _build_dashboard_data(
@@ -479,6 +649,7 @@ def create_app(
     visual_tools_by_name: dict[str, VisualTool] = {t.name: t for t in visual_tools}
 
     portfolio_description: str = config.get("portfolio_description", "")
+    frontend_llm_chat_style: str = config.get("frontend_llm_chat_style", "")
 
     if portfolio_file:
         if not Path(portfolio_file).exists():
@@ -512,6 +683,7 @@ def create_app(
             portfolio_file=portfolio_file,
             portfolio_description=portfolio_description,
             tasks=scheduled_tasks,
+            frontend_llm_chat_style=frontend_llm_chat_style,
         )
 
     # ── Page ──────────────────────────────────────────────
@@ -542,7 +714,17 @@ def create_app(
         if not os.getenv("ANTHROPIC_API_KEY"):
             return {"error": "ANTHROPIC_API_KEY not set"}, 500
 
-        conversation_messages.append({"role": "user", "content": user_message, "source": "web"})
+        wrapped_message = _wrap_user_message(user_message, "web")
+        conversation_messages.append({"role": "user", "content": wrapped_message, "source": "web"})
+
+        # Check token count and compact if needed
+        token_count = _estimate_token_count(conversation_messages, system_prompt)
+        if token_count > COMPACT_ON_NUM_TOKENS:
+            print(f"[Compaction] Token count {token_count} exceeds threshold "
+                  f"{COMPACT_ON_NUM_TOKENS}", flush=True)
+            conversation_messages[:] = _compact_conversation(
+                conversation_messages, system_prompt
+            )
 
         litellm_messages = (
             [{"role": "system", "content": system_prompt}]
@@ -566,6 +748,11 @@ def create_app(
                     # Accumulate streamed tool calls by index
                     tool_calls_acc: dict[int, dict] = {}
                     chunk_content = ""
+                    # Section tracking for thinking/response streaming
+                    thinking_started = False
+                    response_started = False
+                    in_thinking = False
+                    in_response = False
 
                     for chunk in response:
                         delta = chunk.choices[0].delta
@@ -573,7 +760,33 @@ def create_app(
                         if delta.content:
                             chunk_content += delta.content
                             full_response += delta.content
-                            sse_data = json.dumps({"type": "chunk", "content": delta.content})
+
+                            # Detect section transitions on accumulated text
+                            if "<INTERNAL_THINKING>" in chunk_content and not thinking_started:
+                                thinking_started = True
+                                in_thinking = True
+                                in_response = False
+                                yield f"data: {json.dumps({'type': 'thinking_start'})}\n\n"
+
+                            if "</INTERNAL_THINKING>" in chunk_content and in_thinking:
+                                in_thinking = False
+                                yield f"data: {json.dumps({'type': 'thinking_end'})}\n\n"
+
+                            if "<RESPONSE_TO_USER>" in chunk_content and not response_started:
+                                response_started = True
+                                in_response = True
+                                in_thinking = False
+                                yield f"data: {json.dumps({'type': 'response_start'})}\n\n"
+
+                            if "</RESPONSE_TO_USER>" in chunk_content and in_response:
+                                in_response = False
+
+                            section = "thinking" if in_thinking else ("response" if in_response else "raw")
+                            sse_data = json.dumps({
+                                "type": "chunk",
+                                "content": delta.content,
+                                "section": section,
+                            })
                             yield f"data: {sse_data}\n\n"
 
                         if hasattr(delta, "tool_calls") and delta.tool_calls:
@@ -633,10 +846,25 @@ def create_app(
                     # Signal a new message bubble before the follow-up response
                     yield f"data: {json.dumps({'type': 'new_message'})}\n\n"
 
+                    # Reset section tracking for next LLM response
+                    thinking_started = False
+                    response_started = False
+                    in_thinking = False
+                    in_response = False
+
                     # Loop back to let the model produce a final response
 
-                yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                conversation_messages.append({"role": "assistant", "content": full_response})
+                # Parse the final full response
+                thinking, user_response, is_silent = _parse_llm_response(full_response)
+
+                yield f"data: {json.dumps({'type': 'done', 'thinking': thinking, 'response': user_response, 'is_silent': is_silent})}\n\n"
+                conversation_messages.append({
+                    "role": "assistant",
+                    "content": full_response,
+                    "_thinking": thinking,
+                    "_user_response": user_response,
+                    "_is_silent": is_silent,
+                })
 
             except Exception as e:
                 error_msg = str(e)
@@ -661,11 +889,36 @@ def create_app(
 
     @app.route("/api/chatlog")
     def chatlog():
+        token_count = _estimate_token_count(conversation_messages, system_prompt)
         return {
             "system_prompt": system_prompt,
             "messages": conversation_messages,
             "tools": tools_json,
+            "token_count": token_count,
+            "compact_threshold": COMPACT_ON_NUM_TOKENS,
+            "message_count": len(conversation_messages),
         }
+
+    @app.route("/api/chatlog/download")
+    def chatlog_download():
+        """Download the complete debug log as a JSON file."""
+        now = datetime.now(timezone.utc)
+        log_data = {
+            "exported_at": now.isoformat(),
+            "system_prompt": system_prompt,
+            "messages": conversation_messages,
+            "tools": tools_json,
+            "token_count": _estimate_token_count(conversation_messages, system_prompt),
+            "compact_threshold": COMPACT_ON_NUM_TOKENS,
+            "model": CHAT_MODEL,
+            "max_tokens": MAX_TOKENS,
+        }
+        filename = f"athena_debug_log_{now.strftime('%Y%m%d_%H%M%S')}.json"
+        return Response(
+            json.dumps(log_data, indent=2, default=str),
+            mimetype="application/json",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
 
     # ── Widgets API ─────────────────────────────────────
 
@@ -729,6 +982,7 @@ def create_app(
                 portfolio_file=portfolio_file_path,
                 portfolio_description=portfolio_description,
                 tasks=scheduled_tasks,
+                frontend_llm_chat_style=frontend_llm_chat_style,
             )
         return {"status": "ok", "changed": changed}
 
@@ -787,6 +1041,7 @@ def create_app(
                 portfolio_file=portfolio_file_path,
                 portfolio_description=portfolio_description,
                 tasks=scheduled_tasks,
+                frontend_llm_chat_style=frontend_llm_chat_style,
             )
 
         return {"status": "ok"}
@@ -966,11 +1221,13 @@ def create_app(
             if tasks_file_path:
                 save_tasks_to_excel(scheduled_tasks, tasks_file_path)
             # Forward response to all active gateways (e.g. Telegram)
-            for gw in active_gateways:
-                try:
-                    gw.send_message(f"[{task.name}]\n{response}")
-                except Exception as e:
-                    print(f"[Run Now] Failed to forward to {gw.name}: {e}", flush=True)
+            # Skip if response is empty (silent/NO_VISIBLE_MESSAGE)
+            if response.strip():
+                for gw in active_gateways:
+                    try:
+                        gw.send_message(f"[{task.name}]\n{response}")
+                    except Exception as e:
+                        print(f"[Run Now] Failed to forward to {gw.name}: {e}", flush=True)
         except Exception as e:
             print(f"[Run Now] Task '{task.name}' failed: {e}", flush=True)
 
@@ -994,6 +1251,8 @@ def create_app(
             portfolio, widget_ctx,
             portfolio_file=portfolio_file_path,
             portfolio_description=portfolio_description,
+            tasks=scheduled_tasks,
+            frontend_llm_chat_style=frontend_llm_chat_style,
         )
         return {"status": "ok"}
 
@@ -1025,7 +1284,17 @@ def create_app(
             return "ANTHROPIC_API_KEY not set."
 
         with conversation_lock:
-            conversation_messages.append({"role": "user", "content": text, "source": source})
+            wrapped_text = _wrap_user_message(text, source)
+            conversation_messages.append({"role": "user", "content": wrapped_text, "source": source})
+
+            # Check token count and compact if needed
+            token_count = _estimate_token_count(conversation_messages, system_prompt)
+            if token_count > COMPACT_ON_NUM_TOKENS:
+                print(f"[Compaction] Token count {token_count} exceeds threshold "
+                      f"{COMPACT_ON_NUM_TOKENS}", flush=True)
+                conversation_messages[:] = _compact_conversation(
+                    conversation_messages, system_prompt
+                )
 
             llm_messages = (
                 [{"role": "system", "content": system_prompt}]
@@ -1108,15 +1377,26 @@ def create_app(
                     full_response = ""
                     _gateway_stream["content"] = ""
 
-                conversation_messages.append({"role": "assistant", "content": full_response, "source": source})
+                # Parse structured response
+                thinking, user_response, is_silent = _parse_llm_response(full_response)
+                conversation_messages.append({
+                    "role": "assistant",
+                    "content": full_response,
+                    "source": source,
+                    "_thinking": thinking,
+                    "_user_response": user_response,
+                    "_is_silent": is_silent,
+                })
             except Exception as e:
                 full_response = f"Error: {e}"
+                user_response = full_response
+                is_silent = False
                 if conversation_messages and conversation_messages[-1].get("source") == source:
                     conversation_messages.pop()
             finally:
                 _gateway_stream = None
 
-        return full_response
+        return "" if is_silent else user_response
 
     # ── Gateways ─────────────────────────────────────────
 

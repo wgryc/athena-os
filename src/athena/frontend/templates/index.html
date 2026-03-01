@@ -154,7 +154,9 @@
             <div id="debug-tab" class="tab-content">
                 <div class="debug-toolbar">
                     <button id="debug-refresh-btn" class="btn-secondary">Refresh</button>
+                    <button id="debug-download-btn" class="btn-secondary">Download Log</button>
                     <span class="debug-hint">Auto-refreshes after each chat message</span>
+                    <span id="debug-token-count" class="debug-token-count"></span>
                 </div>
                 <div id="debug-log">
                     <div class="debug-section">
@@ -437,7 +439,9 @@
             const decoder = new TextDecoder();
             let buffer = '';
             let currentText = '';
+            let responseText = '';
             let toolUseDiv = null;
+            let currentSection = 'raw';  // 'thinking', 'response', or 'raw'
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -449,13 +453,41 @@
                     if (!line.startsWith('data: ')) continue;
                     try {
                         const event = JSON.parse(line.slice(6));
-                        if (event.type === 'chunk') {
+                        if (event.type === 'thinking_start') {
+                            currentSection = 'thinking';
+                            assistantDiv.innerHTML = '<div class="thinking-indicator">Analyzing...</div>';
+                        } else if (event.type === 'thinking_end') {
+                            currentSection = 'raw';
+                        } else if (event.type === 'response_start') {
+                            currentSection = 'response';
+                            responseText = '';
+                            assistantDiv.innerHTML = '';
+                        } else if (event.type === 'chunk') {
                             currentText += event.content;
-                            assistantDiv.innerHTML = marked.parse(currentText);
-                            scrollToBottom();
+                            const section = event.section || currentSection;
+                            if (section === 'response') {
+                                responseText += event.content;
+                                // Strip any leftover tags from display
+                                let display = responseText
+                                    .replace(/<RESPONSE_TO_USER>/g, '')
+                                    .replace(/<\/RESPONSE_TO_USER>/g, '');
+                                assistantDiv.innerHTML = marked.parse(display);
+                                scrollToBottom();
+                            } else if (section === 'thinking') {
+                                // Don't update visible chat bubble during thinking
+                            } else {
+                                // Raw/fallback: render everything
+                                assistantDiv.innerHTML = marked.parse(currentText);
+                                scrollToBottom();
+                            }
                         } else if (event.type === 'tool_use') {
-                            // Finalize any text streamed so far, or remove empty thinking div
-                            if (currentText) {
+                            // Finalize any text streamed so far, or remove empty/thinking div
+                            if (responseText) {
+                                let display = responseText
+                                    .replace(/<RESPONSE_TO_USER>/g, '')
+                                    .replace(/<\/RESPONSE_TO_USER>/g, '');
+                                assistantDiv.innerHTML = marked.parse(display);
+                            } else if (currentText && currentSection !== 'thinking') {
                                 assistantDiv.innerHTML = marked.parse(currentText);
                             } else {
                                 assistantDiv.remove();
@@ -473,9 +505,18 @@
                             }
                             // Start a fresh assistant bubble for the follow-up
                             currentText = '';
+                            responseText = '';
+                            currentSection = 'raw';
                             assistantDiv = appendMessage('assistant', '');
                             assistantDiv.innerHTML = '<div class="thinking"><span></span><span></span><span></span></div>';
                             scrollToBottom();
+                        } else if (event.type === 'done') {
+                            // Final clean render from parsed response
+                            if (event.is_silent) {
+                                assistantDiv.remove();
+                            } else if (event.response) {
+                                assistantDiv.innerHTML = marked.parse(event.response);
+                            }
                         } else if (event.type === 'error') {
                             assistantDiv.className = 'message error-message';
                             assistantDiv.innerHTML = '';
@@ -488,7 +529,6 @@
                     } catch {}
                 }
             }
-            if (currentText) assistantDiv.innerHTML = marked.parse(currentText);
         } catch (err) {
             assistantDiv.className = 'message error-message';
             assistantDiv.innerHTML = '';
@@ -1092,6 +1132,14 @@
             const resp = await fetch('/api/chatlog');
             const data = await resp.json();
 
+            // Token count display
+            const tokenSpan = document.getElementById('debug-token-count');
+            if (data.token_count !== undefined) {
+                const pct = Math.round((data.token_count / data.compact_threshold) * 100);
+                tokenSpan.textContent = `~${data.token_count.toLocaleString()} tokens (${pct}% of compact threshold)`;
+                tokenSpan.style.color = pct > 80 ? 'var(--orange)' : 'var(--text-muted)';
+            }
+
             document.getElementById('debug-tools').textContent = JSON.stringify(data.tools, null, 2);
             document.getElementById('debug-system').textContent = data.system_prompt || '(empty)';
 
@@ -1115,14 +1163,49 @@
 
                 const label = document.createElement('div');
                 label.className = `debug-msg-label ${roleClass}`;
-                label.textContent = `[${i}] ${msg.role}`;
 
-                const pre = document.createElement('pre');
-                pre.className = 'debug-json';
-                pre.textContent = JSON.stringify(msg, null, 2);
+                // Enhanced label with metadata
+                let labelText = `[${i}] ${msg.role}`;
+                if (msg.source) labelText += ` (${msg.source})`;
+                if (msg._is_compaction) labelText += ' [COMPACTED]';
+                if (msg._is_silent) labelText += ' [SILENT]';
+                label.textContent = labelText;
 
-                block.appendChild(label);
-                block.appendChild(pre);
+                // For assistant messages with thinking/response structure
+                if (msg._thinking !== undefined || msg._user_response !== undefined) {
+                    const sections = document.createElement('div');
+                    sections.className = 'debug-thinking-section';
+
+                    const thinkingLabel = document.createElement('div');
+                    thinkingLabel.className = 'debug-sub-label debug-thinking-label';
+                    thinkingLabel.textContent = 'INTERNAL THINKING';
+                    sections.appendChild(thinkingLabel);
+
+                    const thinkingPre = document.createElement('pre');
+                    thinkingPre.className = 'debug-json debug-thinking';
+                    thinkingPre.textContent = msg._thinking || '(none)';
+                    sections.appendChild(thinkingPre);
+
+                    const responseLabel = document.createElement('div');
+                    responseLabel.className = 'debug-sub-label debug-response-label';
+                    responseLabel.textContent = msg._is_silent ? 'RESPONSE (SILENT)' : 'RESPONSE TO USER';
+                    sections.appendChild(responseLabel);
+
+                    const responsePre = document.createElement('pre');
+                    responsePre.className = 'debug-json debug-response';
+                    responsePre.textContent = msg._user_response || '(none)';
+                    sections.appendChild(responsePre);
+
+                    block.appendChild(label);
+                    block.appendChild(sections);
+                } else {
+                    const pre = document.createElement('pre');
+                    pre.className = 'debug-json';
+                    pre.textContent = JSON.stringify(msg, null, 2);
+                    block.appendChild(label);
+                    block.appendChild(pre);
+                }
+
                 debugMsgsDiv.appendChild(block);
             });
         } catch (e) {
@@ -1131,6 +1214,9 @@
     }
 
     document.getElementById('debug-refresh-btn').addEventListener('click', loadDebugLog);
+    document.getElementById('debug-download-btn').addEventListener('click', () => {
+        window.location.href = '/api/chatlog/download';
+    });
 
     document.querySelectorAll('.debug-section-header').forEach(h => {
         h.addEventListener('click', () => {
@@ -1185,15 +1271,27 @@
                                 toolDiv.querySelector('.tool-use').classList.add('done');
                             }
                         } else if (msg.role === 'assistant' && msg.content && !msg.tool_calls) {
+                            // Skip silent messages (NO_VISIBLE_MESSAGE)
+                            if (msg._is_silent) {
+                                if (wasGatewayStreaming && gatewayStreamDiv) {
+                                    gatewayStreamDiv.remove();
+                                    wasGatewayStreaming = false;
+                                    gatewayStreamDiv = null;
+                                    gatewayShowingTools = false;
+                                }
+                                continue;
+                            }
+                            // Use parsed user response if available, otherwise raw content
+                            const displayContent = msg._user_response || msg.content;
                             if (wasGatewayStreaming && gatewayStreamDiv) {
                                 // Update streaming div with final content (streaming may have missed last chunks)
-                                gatewayStreamDiv.innerHTML = marked.parse(msg.content);
+                                gatewayStreamDiv.innerHTML = marked.parse(displayContent);
                                 wasGatewayStreaming = false;
                                 gatewayStreamDiv = null;
                                 gatewayShowingTools = false;
                             } else {
                                 const div = appendMessage('assistant', '');
-                                div.innerHTML = marked.parse(msg.content);
+                                div.innerHTML = marked.parse(displayContent);
                             }
                         }
                     }
