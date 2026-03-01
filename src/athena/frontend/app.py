@@ -95,13 +95,45 @@ def _estimate_token_count(messages: list[dict], system_prompt: str = "") -> int:
         return total_chars // 4
 
 
+def _safe_split_index(messages: list[dict], desired_keep: int) -> int:
+    """Find a safe split index that never orphans tool_result messages.
+
+    The Anthropic API requires every ``tool_result`` (role="tool") message to
+    be immediately preceded by an ``assistant`` message containing the matching
+    ``tool_use``.  When we slice a conversation for compaction we must ensure
+    the cut point does not land between an assistant-with-tool_calls and its
+    tool results.
+
+    Args:
+        messages: Full conversation message list.
+        desired_keep: How many trailing messages we'd *like* to preserve.
+
+    Returns:
+        The index into *messages* at which to split.  Everything before this
+        index will be summarized; everything from this index onward is kept.
+    """
+    if desired_keep >= len(messages):
+        return 0
+
+    split = len(messages) - desired_keep
+
+    # Walk the split backward until the first preserved message is NOT a tool
+    # result.  This guarantees the matching assistant+tool_calls message is
+    # also inside the preserved window.
+    while split > 0 and messages[split].get("role") == "tool":
+        split -= 1
+
+    return split
+
+
 def _compact_conversation(
     messages: list[dict],
     system_prompt: str,
 ) -> list[dict]:
     """Compact the conversation by asking the LLM to summarize it.
 
-    Preserves the most recent 4 messages for immediate context.
+    Preserves the most recent messages for immediate context (at least 4,
+    but more if needed to keep tool call/result pairs intact).
     Falls back to keeping the last 20 messages on failure.
 
     Args:
@@ -115,8 +147,12 @@ def _compact_conversation(
     if len(messages) <= preserve_count:
         return messages
 
-    messages_to_summarize = messages[:-preserve_count]
-    preserved = messages[-preserve_count:]
+    split = _safe_split_index(messages, preserve_count)
+    if split == 0:
+        return messages
+
+    messages_to_summarize = messages[:split]
+    preserved = messages[split:]
 
     summary_request = [
         {"role": "system", "content": (
@@ -155,7 +191,8 @@ def _compact_conversation(
 
     except Exception as e:
         print(f"[Compaction] Failed: {e}", flush=True)
-        return messages[-20:]
+        fallback_split = _safe_split_index(messages, 20)
+        return messages[fallback_split:]
 
 
 def _load_config(config_path: Path) -> dict:

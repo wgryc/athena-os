@@ -6,6 +6,7 @@ from athena.frontend.app import (
     _wrap_user_message,
     _parse_llm_response,
     _estimate_token_count,
+    _safe_split_index,
 )
 
 
@@ -145,3 +146,76 @@ class TestEstimateTokenCount:
         ]
         count = _estimate_token_count(messages, "System prompt")
         assert count > 0
+
+
+class TestSafeSplitIndex:
+    """Tests for _safe_split_index()."""
+
+    def test_no_tool_messages(self):
+        """When there are no tool messages, split normally."""
+        messages = [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi"},
+            {"role": "user", "content": "How are you?"},
+            {"role": "assistant", "content": "Good!"},
+            {"role": "user", "content": "Bye"},
+        ]
+        assert _safe_split_index(messages, 4) == 1
+
+    def test_tool_result_at_split_boundary(self):
+        """Tool result at the split boundary should pull the assistant msg in."""
+        messages = [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": None, "tool_calls": [{"id": "tc_1"}]},
+            {"role": "tool", "tool_call_id": "tc_1", "content": "result"},
+            {"role": "assistant", "content": "Here you go."},
+            {"role": "user", "content": "Thanks"},
+            {"role": "assistant", "content": "Welcome!"},
+        ]
+        # desired_keep=4 → naive split at index 2 → messages[2] is tool
+        # should back up to index 1 (the assistant with tool_calls)
+        assert _safe_split_index(messages, 4) == 1
+
+    def test_multiple_tool_results_at_boundary(self):
+        """Multiple consecutive tool results should all be preserved."""
+        messages = [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": None, "tool_calls": [{"id": "tc_1"}, {"id": "tc_2"}]},
+            {"role": "tool", "tool_call_id": "tc_1", "content": "result1"},
+            {"role": "tool", "tool_call_id": "tc_2", "content": "result2"},
+            {"role": "assistant", "content": "Done."},
+            {"role": "user", "content": "Ok"},
+        ]
+        # desired_keep=4 → naive split at index 2 → messages[2] is tool
+        # messages[1] is assistant (not tool), so split = 1
+        assert _safe_split_index(messages, 4) == 1
+
+    def test_no_adjustment_needed(self):
+        """When the split point is clean, no adjustment is needed."""
+        messages = [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": None, "tool_calls": [{"id": "tc_1"}]},
+            {"role": "tool", "tool_call_id": "tc_1", "content": "result"},
+            {"role": "assistant", "content": "Here you go."},
+            {"role": "user", "content": "Thanks"},
+        ]
+        # desired_keep=2 → split at index 3 → messages[3] is assistant, no adjustment
+        assert _safe_split_index(messages, 2) == 3
+
+    def test_desired_keep_exceeds_length(self):
+        """When desired_keep >= len(messages), return 0."""
+        messages = [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi"},
+        ]
+        assert _safe_split_index(messages, 5) == 0
+        assert _safe_split_index(messages, 2) == 0
+
+    def test_all_messages_are_tool_results(self):
+        """Edge case: if walking back reaches index 0, return 0 (keep all)."""
+        messages = [
+            {"role": "tool", "tool_call_id": "tc_1", "content": "r1"},
+            {"role": "tool", "tool_call_id": "tc_2", "content": "r2"},
+            {"role": "tool", "tool_call_id": "tc_3", "content": "r3"},
+        ]
+        assert _safe_split_index(messages, 2) == 0
