@@ -10,6 +10,7 @@
 - `config.json` can now be edited via the frontend.
 - Added "heartbeat_interval_minutes" to `config.json` (and frontend settings editor); this is when the LLM 'awakes' to review the chat and run any tasks it might choose to. This is not related to scheduled tasks but proactive outreach by the LLM.
 - The chat now persists across server restarts. You can also choose to save/share the chat -- saved as `chat.json` by default. The chat doesn't reload on the frontend but does get sent to the LLM.
+- You can set the LLM model to be used across all parts of Athena OS as the environment variable `DEFAULT_LLM_MODEL` and in the various `config.json` files you use. Note that hard-coded default models, if the arguments are missing, use Claude Haiku to minimize costs.
 
 # Change Log for v0.1.0
 

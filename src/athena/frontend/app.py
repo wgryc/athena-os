@@ -49,7 +49,8 @@ from .. import pricingdata
 
 load_dotenv()
 
-CHAT_MODEL = "anthropic/claude-opus-4-5"
+_FALLBACK_CHAT_MODEL = "anthropic/claude-haiku-4-5-20251001"
+CHAT_MODEL = os.getenv("DEFAULT_LLM_MODEL", _FALLBACK_CHAT_MODEL)
 MAX_TOKENS = 16000
 COMPACT_ON_NUM_TOKENS = 80000
 
@@ -607,6 +608,11 @@ def create_app(
     widget_rows: list[list[dict]] = _normalize_widget_rows(
         config.get("widgets", [])
     )
+
+    # Allow config.json to override the chat model
+    global CHAT_MODEL
+    if config.get("model"):
+        CHAT_MODEL = config["model"]
 
     portfolio_file_path: str | None = portfolio_file
     portfolio: Portfolio | None = None
