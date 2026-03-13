@@ -23,6 +23,7 @@ dependencies = [
     "google-search-results",
     "tiktoken",
     "edgartools",
+    "firecrawl-py",
 ]
 
 [project.scripts]

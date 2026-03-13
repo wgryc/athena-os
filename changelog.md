@@ -1,6 +1,6 @@
 # Change Log for v0.1.1
 
-- When running `athena frontend` without a local `config.json` file, we originally showed an empty dashboard. Now, we show a dashboard with high-level performance metrics and line chart of historical value.
+- When running `athenaos frontend` without a local `config.json` file, we originally showed an empty dashboard. Now, we show a dashboard with high-level performance metrics and line chart of historical value.
 - Running `athenaos version` prints the current version of the package.
 - Significant change to how the frontend chatbot operates:
     - "frontend_llm_chat_style" setting in `config.json` allows you to set a style for how the LLM writes. For exmaple, ask it to be concise, avoid markdown, or explain things in simple terms.
@@ -11,6 +11,9 @@
 - Added "heartbeat_interval_minutes" to `config.json` (and frontend settings editor); this is when the LLM 'awakes' to review the chat and run any tasks it might choose to. This is not related to scheduled tasks but proactive outreach by the LLM.
 - The chat now persists across server restarts. You can also choose to save/share the chat -- saved as `chat.json` by default. The chat doesn't reload on the frontend but does get sent to the LLM.
 - You can set the LLM model to be used across all parts of Athena OS as the environment variable `DEFAULT_LLM_MODEL` and in the various `config.json` files you use. Note that hard-coded default models, if the arguments are missing, use Claude Haiku to minimize costs.
+- When LLM is executing tasks (i.e., tool use), it will now check off the completed tasks so the frontend user can see what is and is not complete.
+- Minor bug fixes to hide LLM thinking process from frontend users.
+- Updated `sample_transactions.xlsx`.
 
 # Change Log for v0.1.0
 

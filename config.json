@@ -28,6 +28,12 @@
     ],
     "gateways": {
         "telegram": {
+            "bot_token": "8032753577:AAEMmnNy4aaJp1N-_rCYYIXzY272d8TyRA4",
+            "chat_id": 973995079
+        }
+    },
+    "xxgateways": {
+        "telegram": {
             "bot_token": "replace_with_your_bot_token",
             "chat_id": 123456789
         }

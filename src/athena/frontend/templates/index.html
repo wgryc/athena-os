@@ -462,7 +462,7 @@
 
     function buildToolUseHTML(tools) {
         const label = tools.length === 1 ? 'Using Tool:' : 'Using Tools:';
-        const tags = tools.map(t => `<span class="tool-tag">${t}</span>`).join('');
+        const tags = tools.map((t, i) => `<span class="tool-tag" data-tool-index="${i}">${t}</span>`).join('');
         return `<div class="tool-use"><div class="tool-use-header"><span class="tool-owl">&#x1F989;</span> ${label}</div><div class="tool-tags">${tags}</div></div>`;
     }
 
@@ -524,6 +524,7 @@
             let responseText = '';
             let toolUseDiv = null;
             let currentSection = 'raw';  // 'thinking', 'response', or 'raw'
+            let hasSeenThinking = false;  // true once thinking_start fires; prevents raw fallback from leaking thinking content
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -537,6 +538,7 @@
                         const event = JSON.parse(line.slice(6));
                         if (event.type === 'thinking_start') {
                             currentSection = 'thinking';
+                            hasSeenThinking = true;
                             assistantDiv.innerHTML = '<div class="thinking-indicator">Analyzing...</div>';
                         } else if (event.type === 'thinking_end') {
                             currentSection = 'raw';
@@ -557,8 +559,10 @@
                                 scrollToBottom();
                             } else if (section === 'thinking') {
                                 // Don't update visible chat bubble during thinking
-                            } else {
-                                // Raw/fallback: render everything
+                            } else if (!hasSeenThinking) {
+                                // Raw/fallback: only render when no structured thinking format is in use,
+                                // otherwise 'raw' chunks between </INTERNAL_THINKING> and <RESPONSE_TO_USER>
+                                // would leak the full accumulated thinking content into the chat bubble.
                                 assistantDiv.innerHTML = marked.parse(currentText);
                                 scrollToBottom();
                             }
@@ -569,7 +573,7 @@
                                     .replace(/<RESPONSE_TO_USER>/g, '')
                                     .replace(/<\/RESPONSE_TO_USER>/g, '');
                                 assistantDiv.innerHTML = marked.parse(display);
-                            } else if (currentText && currentSection !== 'thinking') {
+                            } else if (currentText && currentSection !== 'thinking' && !hasSeenThinking) {
                                 assistantDiv.innerHTML = marked.parse(currentText);
                             } else {
                                 assistantDiv.remove();
@@ -578,6 +582,11 @@
                             toolUseDiv = appendMessage('assistant', '');
                             toolUseDiv.innerHTML = buildToolUseHTML(event.tools);
                             scrollToBottom();
+                        } else if (event.type === 'tool_done') {
+                            if (toolUseDiv) {
+                                const tag = toolUseDiv.querySelector(`.tool-tag[data-tool-index="${event.index}"]`);
+                                if (tag) tag.classList.add('done');
+                            }
                         } else if (event.type === 'new_message') {
                             // Mark tool-use indicator as done (keep it visible)
                             if (toolUseDiv) {
@@ -589,6 +598,7 @@
                             currentText = '';
                             responseText = '';
                             currentSection = 'raw';
+                            hasSeenThinking = false;
                             assistantDiv = appendMessage('assistant', '');
                             assistantDiv.innerHTML = '<div class="thinking"><span></span><span></span><span></span></div>';
                             scrollToBottom();

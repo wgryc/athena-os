@@ -43,6 +43,9 @@ from ..tools.web import NewsSearch, CrawlPage
 from ..tools.events import ETEventsSearch, ETEventsWidget
 from ..tools.filings import SECFilings, SECFilingContent, SECFilingsWidget, InsiderTrades, InsiderTradesWidget
 from ..tools.tasks import ManageTasks, ScheduledTasksWidget
+from ..tools.agent_files import ReadAgentFile, UpdateAgentFile
+from ..tools.discourse_post import CreateDiscoursePost, ListDiscourseTopics, ReadDiscourseTopic
+from ..tools.firecrawl import FirecrawlSearch, FirecrawlScrape
 from ..tasks import ScheduledTask, load_tasks_from_excel, save_tasks_to_excel, parse_schedule
 from .scheduler import TaskScheduler
 from .. import pricingdata
@@ -383,7 +386,14 @@ def _parse_llm_response(full_text: str) -> tuple[str, str, bool]:
     response_match = _RESPONSE_PATTERN.search(full_text)
 
     thinking = thinking_match.group(1).strip() if thinking_match else ""
-    response = response_match.group(1).strip() if response_match else full_text.strip()
+    if response_match:
+        response = response_match.group(1).strip()
+    elif thinking_match:
+        # Structured format used but <RESPONSE_TO_USER> is missing — strip the
+        # thinking block so it is never shown to the user as a fallback response.
+        response = _THINKING_PATTERN.sub("", full_text).strip()
+    else:
+        response = full_text.strip()
 
     is_silent = response == _NO_VISIBLE_MESSAGE
 
@@ -586,6 +596,7 @@ def create_app(
     portfolio_file: str | None = None,
     pricing_manager: PricingDataManager | None = None,
     force_cache_refresh: bool = False,
+    discourse_config_path: str | None = None,
 ) -> Flask:
     """Create and configure the Flask application.
 
@@ -596,6 +607,9 @@ def create_app(
             When provided, it is attached to the portfolio for live pricing.
         force_cache_refresh: When ``True``, bypass disk cache for price
             history lookups.
+        discourse_config_path: Optional path to a discourse bot JSON config
+            file. When provided, loads the bot's personality, memory, todo,
+            and discourse/firecrawl tools into the frontend chat.
 
     Returns:
         Configured Flask application instance with all routes registered.
@@ -704,6 +718,43 @@ def create_app(
             delete_task=_delete_task,
         ),
     ]
+    # Always add Firecrawl tools if API key is available
+    if os.getenv("FIRECRAWL_API_KEY"):
+        available_tools.extend([FirecrawlSearch(), FirecrawlScrape()])
+
+    # Discourse integration: load personality, memory, todo, and discourse tools
+    discourse_config: dict | None = None
+    if discourse_config_path:
+        from ..discourse.worker import load_config as load_discourse_config
+        from ..discourse.api import DiscourseClient
+
+        discourse_config = load_discourse_config(discourse_config_path)
+
+        # Agent-file tools (read/update personality, memory, todo)
+        for file_key, label in [
+            ("_personality_path", "personality"),
+            ("_memory_path", "memory"),
+            ("_todo_path", "todo"),
+        ]:
+            fpath = discourse_config.get(file_key)
+            if fpath:
+                available_tools.append(ReadAgentFile(fpath, label, f"read_{label}"))
+                available_tools.append(UpdateAgentFile(fpath, label, f"update_{label}"))
+
+        # Discourse API tools
+        dc_client = DiscourseClient(
+            base_url=discourse_config["discourse_base_url"],
+            api_key=discourse_config["discourse_api_key"],
+            bot_username=discourse_config["bot_username"],
+        )
+        available_tools.extend([
+            CreateDiscoursePost(dc_client, discourse_config["category_id"]),
+            ListDiscourseTopics(dc_client, discourse_config["category_id"]),
+            ReadDiscourseTopic(dc_client),
+        ])
+
+        print(f"  Discourse config loaded: {discourse_config.get('bot_username', 'N/A')}")
+
     tools_json = [t.to_json() for t in available_tools]
     tools_by_name: dict[str, Tool] = {t.name: t for t in available_tools}
     tool_labels: dict[str, str] = {t.name: t.label for t in available_tools}
@@ -772,6 +823,32 @@ def create_app(
             tasks=scheduled_tasks,
             frontend_llm_chat_style=frontend_llm_chat_style,
         )
+
+    def _append_discourse_context(prompt: str) -> str:
+        """Append discourse personality, memory, and todo to a system prompt."""
+        if not discourse_config:
+            return prompt
+        # Re-read files each time so edits via tools are reflected
+        sections: list[str] = []
+        for fkey, label in [
+            ("_personality_path", "Discourse Personality"),
+            ("_memory_path", "Discourse Memory"),
+            ("_todo_path", "Discourse Todo"),
+        ]:
+            fpath = discourse_config.get(fkey)
+            if fpath and Path(fpath).exists():
+                content = Path(fpath).read_text().strip()
+                if content:
+                    sections.append(f"\n## {label}\n{content}")
+        sections.append(
+            "\n## Discourse Tools\n"
+            "You have tools to read and update your personality, memory, and "
+            "todo files, as well as tools to create posts, list topics, and "
+            "read topics on the Discourse forum. Use them when asked."
+        )
+        return prompt + "\n".join(sections)
+
+    system_prompt = _append_discourse_context(system_prompt)
 
     # ── Page ──────────────────────────────────────────────
 
@@ -913,7 +990,7 @@ def create_app(
                     yield f"data: {json.dumps({'type': 'tool_use', 'tools': tool_display})}\n\n"
 
                     # Execute each tool and append results
-                    for tc in tc_list:
+                    for i, tc in enumerate(tc_list):
                         tool = tools_by_name.get(tc["function"]["name"])
                         if tool:
                             try:
@@ -930,6 +1007,7 @@ def create_app(
                         }
                         messages.append(tool_msg)
                         conversation_messages.append(tool_msg)
+                        yield f"data: {json.dumps({'type': 'tool_done', 'index': i})}\n\n"
 
                     # Signal a new message bubble before the follow-up response
                     yield f"data: {json.dumps({'type': 'new_message'})}\n\n"
@@ -1068,13 +1146,13 @@ def create_app(
         if changed and portfolio is not None:
             flat_widgets = _flatten_widget_rows(widget_rows)
             widget_ctx = _build_widget_context(flat_widgets, visual_tools_by_name)
-            system_prompt = _build_system_prompt(
+            system_prompt = _append_discourse_context(_build_system_prompt(
                 portfolio, widget_ctx,
                 portfolio_file=portfolio_file_path,
                 portfolio_description=portfolio_description,
                 tasks=scheduled_tasks,
                 frontend_llm_chat_style=frontend_llm_chat_style,
-            )
+            ))
         return {"status": "ok", "changed": changed}
 
     @app.route("/api/widgets/available")
@@ -1127,13 +1205,13 @@ def create_app(
         if portfolio is not None:
             flat_widgets = _flatten_widget_rows(widget_rows)
             widget_ctx = _build_widget_context(flat_widgets, visual_tools_by_name)
-            system_prompt = _build_system_prompt(
+            system_prompt = _append_discourse_context(_build_system_prompt(
                 portfolio, widget_ctx,
                 portfolio_file=portfolio_file_path,
                 portfolio_description=portfolio_description,
                 tasks=scheduled_tasks,
                 frontend_llm_chat_style=frontend_llm_chat_style,
-            )
+            ))
 
         return {"status": "ok"}
 
@@ -1416,13 +1494,13 @@ def create_app(
 
         flat_widgets = _flatten_widget_rows(widget_rows)
         widget_ctx = _build_widget_context(flat_widgets, visual_tools_by_name)
-        system_prompt = _build_system_prompt(
+        system_prompt = _append_discourse_context(_build_system_prompt(
             portfolio, widget_ctx,
             portfolio_file=portfolio_file_path,
             portfolio_description=portfolio_description,
             tasks=scheduled_tasks,
             frontend_llm_chat_style=frontend_llm_chat_style,
-        )
+        ))
         return {"status": "ok"}
 
     # ── Messages API (for gateway sync) ──────────────────

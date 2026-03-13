@@ -244,6 +244,7 @@ def build_system_prompt(
     memory: str = "",
     todo: str = "",
     chat_mode: bool = False,
+    bot_username: str = "",
 ) -> str:
     """Render the system prompt for a specific thread context.
 
@@ -254,6 +255,7 @@ def build_system_prompt(
         memory: Contents of the bot's memory file.
         todo: Contents of the bot's todo file.
         chat_mode: If ``True``, render for direct CLI chat instead of forum.
+        bot_username: The bot's Discourse username (e.g. ``test_bot_1``).
 
     Returns:
         Rendered system prompt string.
@@ -266,6 +268,7 @@ def build_system_prompt(
         memory=memory,
         todo=todo,
         chat_mode=chat_mode,
+        bot_username=bot_username,
         current_datetime=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
     )
 

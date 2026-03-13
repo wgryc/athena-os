@@ -32,6 +32,8 @@ from ..tools.web import NewsSearch, CrawlPage
 from ..tools.events import ETEventsSearch
 from ..tools.filings import SECFilings, SECFilingContent, InsiderTrades
 from ..tools.agent_files import ReadAgentFile, UpdateAgentFile
+from ..tools.discourse_post import CreateDiscoursePost, ListDiscourseTopics, ReadDiscourseTopic
+from ..tools.firecrawl import FirecrawlSearch, FirecrawlScrape
 
 # Config defaults
 _DEFAULT_POLL_INTERVAL = 300
@@ -53,6 +55,8 @@ _TOOL_REGISTRY: dict[str, type] = {
     "sec_filings": SECFilings,
     "sec_filing_content": SECFilingContent,
     "insider_trades": InsiderTrades,
+    "firecrawl_search": FirecrawlSearch,
+    "firecrawl_scrape": FirecrawlScrape,
 }
 
 
@@ -139,7 +143,10 @@ def load_config(config_path: str | Path) -> dict:
     config.setdefault("engagement_threshold", _DEFAULT_ENGAGEMENT_THRESHOLD)
     config.setdefault("max_replies_per_hour", _DEFAULT_MAX_REPLIES_PER_HOUR)
     config.setdefault("max_replies_per_day", _DEFAULT_MAX_REPLIES_PER_DAY)
-    config.setdefault("state_file", f"discourse_{config['category_id']}_state.json")
+    config.setdefault(
+        "state_file",
+        f"discourse_{config['category_id']}_{config['bot_username']}_state.json",
+    )
     config.setdefault("tools", list(_TOOL_REGISTRY.keys()))
 
     return config
@@ -228,6 +235,8 @@ def process_thread(
     client: DiscourseClient,
     dry_run: bool = False,
     verbose: bool = False,
+    extra_prompt: str = "",
+    force: bool = False,
 ) -> DiscourseThreadState:
     """Triage and optionally reply to a single Discourse thread.
 
@@ -243,6 +252,11 @@ def process_thread(
         client: Authenticated Discourse API client.
         dry_run: If ``True``, generate reply but do not POST.
         verbose: If ``True``, print triage and reply details.
+        extra_prompt: Optional instruction injected as a final user message
+            after thread posts, before the LLM call.
+        force: If ``True``, bypass the cooldown/engagement check so the bot
+            can reply even when the last post is its own (used by the
+            ``reply`` subcommand when a human explicitly triggers a reply).
 
     Returns:
         Updated ``DiscourseThreadState`` (caller must persist to disk).
@@ -257,9 +271,18 @@ def process_thread(
             last_seen_post_number=0,
         )
 
-    should_triage, new_human_posts = _should_engage(
-        topic, thread_state, bot_username
-    )
+    if force:
+        # Collect all non-bot posts as context; the extra_prompt is the real trigger.
+        last_seen = thread_state.last_seen_post_number
+        new_human_posts = [
+            p for p in topic.posts
+            if p.post_number > last_seen and p.username != bot_username
+        ]
+        should_triage = True
+    else:
+        should_triage, new_human_posts = _should_engage(
+            topic, thread_state, bot_username
+        )
 
     if not should_triage:
         if topic.posts:
@@ -301,8 +324,13 @@ def process_thread(
         thread_state.conversation_messages.append(
             {
                 "role": "user",
-                "content": f"[{post.username}]: {post.raw}",
+                "content": f"[#{post.post_number} | {post.username} | {post.created_at}]: {post.raw}",
             }
+        )
+
+    if extra_prompt:
+        thread_state.conversation_messages.append(
+            {"role": "user", "content": f"[system]: {extra_prompt}"}
         )
 
     system_prompt = build_system_prompt(
@@ -310,6 +338,7 @@ def process_thread(
         topic_title=topic.title,
         memory=config.get("memory", ""),
         todo=config.get("todo", ""),
+        bot_username=config.get("bot_username", ""),
     )
 
     reply_text, updated_messages = generate_reply(
@@ -542,6 +571,70 @@ def _cmd_run(args: argparse.Namespace) -> None:
         time.sleep(config["poll_interval_seconds"])
 
 
+def _cmd_reply(args: argparse.Namespace) -> None:
+    """Handle the ``reply`` subcommand — reply to a specific topic by ID.
+
+    Fetches the topic, optionally skips triage, generates a reply, and posts
+    it. State is loaded and saved so prior conversation history is preserved.
+    """
+    config = load_config(args.config)
+    client, tools_by_name = _init_client_and_tools(config)
+    threads, rate_limit = load_state(config["state_file"])
+
+    topic_id: int = args.topic_id
+    dry_run: bool = args.dry_run
+    verbose: bool = args.verbose
+    use_triage: bool = args.triage
+    extra_prompt: str = args.prompt or ""
+
+    print(f"[Reply] Fetching topic {topic_id}…", flush=True)
+    try:
+        topic = client.get_topic(topic_id)
+    except Exception as e:
+        print(f"[Reply] Failed to fetch topic {topic_id}: {e}", flush=True)
+        return
+
+    print(f"[Reply] Topic: \"{topic.title}\" ({topic.posts_count} posts)", flush=True)
+
+    existing_state = threads.get(topic_id)
+
+    # Rebuild conversation from scratch so the bot sees the full thread without
+    # duplication. The reply command is an explicit human directive, so we reset
+    # last_seen and clear prior conversation history — it will be reconstructed
+    # from all current topic posts.
+    if existing_state is not None:
+        existing_state.last_seen_post_number = 0
+        existing_state.conversation_messages = []
+
+    if use_triage:
+        patched_config = config
+        if verbose:
+            print(f"[Reply] Triage enabled (threshold={config['engagement_threshold']})", flush=True)
+    else:
+        # Bypass triage — human has already decided to engage
+        patched_config = {**config, "engagement_threshold": 0}
+        if verbose:
+            print("[Reply] Triage skipped (default for targeted reply)", flush=True)
+
+    updated_state = process_thread(
+        topic=topic,
+        thread_state=existing_state,
+        config=patched_config,
+        tools_by_name=tools_by_name,
+        client=client,
+        dry_run=dry_run,
+        verbose=verbose,
+        extra_prompt=extra_prompt,
+        force=True,
+    )
+
+    threads[topic_id] = updated_state
+    save_state(config["state_file"], threads, rate_limit)
+
+    if verbose:
+        print(f"[Reply] Done. Last engaged: {updated_state.last_engaged}", flush=True)
+
+
 def _cmd_post(args: argparse.Namespace) -> None:
     """Handle the ``post`` subcommand — create a new topic.
 
@@ -562,6 +655,7 @@ def _cmd_post(args: argparse.Namespace) -> None:
         topic_title="(new topic — you are writing the opening post)",
         memory=config.get("memory", ""),
         todo=config.get("todo", ""),
+        bot_username=config.get("bot_username", ""),
     )
 
     # Override system prompt to ask for a title + body
@@ -572,8 +666,9 @@ def _cmd_post(args: argparse.Namespace) -> None:
         "TITLE: Your Topic Title Here\n"
         "---\n"
         "The body of your post in markdown.\n\n"
-        "The first line MUST start with 'TITLE: ' followed by a concise, "
-        "descriptive title. Then a line with just '---', then the post body."
+        "The first line MUST start with 'TITLE: ' followed by a short, pithy "
+        "title — think newspaper headline, not a summary sentence. Keep it "
+        "under 80 characters. Then a line with just '---', then the post body."
     )
 
     conversation: list[dict] = [{"role": "user", "content": prompt}]
@@ -653,6 +748,24 @@ def _cmd_chat(args: argparse.Namespace) -> None:
 
     tools_by_name = build_tools(config["tools"], config=config)
 
+    # Add Discourse posting tool so the bot can publish from chat
+    chat_client = DiscourseClient(
+        base_url=config["discourse_base_url"],
+        api_key=config["discourse_api_key"],
+        bot_username=config["bot_username"],
+    )
+    tools_by_name["create_discourse_post"] = CreateDiscoursePost(
+        client=chat_client,
+        category_id=config["category_id"],
+    )
+    tools_by_name["list_discourse_topics"] = ListDiscourseTopics(
+        client=chat_client,
+        category_id=config["category_id"],
+    )
+    tools_by_name["read_discourse_topic"] = ReadDiscourseTopic(
+        client=chat_client,
+    )
+
     # Print branded header
     print(ATHENA_LOGO)
     print(INVESTING_WARNING)
@@ -694,6 +807,7 @@ def _cmd_chat(args: argparse.Namespace) -> None:
             memory=config.get("memory", ""),
             todo=config.get("todo", ""),
             chat_mode=True,
+            bot_username=config.get("bot_username", ""),
         )
 
         reply_text, conversation_messages = generate_reply(
@@ -731,11 +845,12 @@ def _parse_topic_response(text: str) -> tuple[str, str]:
         if len(lines) > 1 and lines[1].strip() == "---":
             body_start = 2
         body = "\n".join(lines[body_start:]).strip()
-        return title, body
+        return title[:250], body
 
     # Fallback: first line as title, rest as body
     title = lines[0] if lines else "New Topic"
     body = "\n".join(lines[1:]).strip() if len(lines) > 1 else text
+    title = title[:250]
     return title, body
 
 
@@ -747,6 +862,8 @@ def main() -> None:
         python -m athena.discourse run --config discourse_finance.json
         python -m athena.discourse run --config discourse_finance.json --dry-run --once -v
         python -m athena.discourse post --config discourse_finance.json --prompt "Write about Q4 earnings"
+        python -m athena.discourse reply --config discourse_finance.json --topic-id 42
+        python -m athena.discourse reply --config discourse_finance.json --topic-id 42 --skip-triage -v
     """
     parser = argparse.ArgumentParser(
         description="AthenaOS Discourse bot",
@@ -781,6 +898,48 @@ def main() -> None:
         help="Print triage scores, tool calls, and reply text to stdout",
     )
     run_parser.set_defaults(func=_cmd_run)
+
+    # --- reply subcommand ---
+    reply_parser = subparsers.add_parser(
+        "reply",
+        help="Reply to a specific Discourse topic by ID",
+    )
+    reply_parser.add_argument(
+        "--config",
+        "-c",
+        required=True,
+        help="Path to the bot JSON config file",
+    )
+    reply_parser.add_argument(
+        "--topic-id",
+        "-t",
+        type=int,
+        required=True,
+        help="Discourse topic ID to reply to",
+    )
+    reply_parser.add_argument(
+        "--prompt",
+        "-p",
+        default=None,
+        help="Optional instruction injected after the thread posts (e.g. 'Check recent news and post a follow-up')",
+    )
+    reply_parser.add_argument(
+        "--triage",
+        action="store_true",
+        help="Run triage scoring and only reply if score meets engagement_threshold (default: skipped)",
+    )
+    reply_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Generate a reply but do not post to Discourse",
+    )
+    reply_parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Print triage scores, tool calls, and reply text to stdout",
+    )
+    reply_parser.set_defaults(func=_cmd_reply)
 
     # --- post subcommand ---
     post_parser = subparsers.add_parser(

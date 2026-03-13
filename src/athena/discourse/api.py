@@ -105,7 +105,16 @@ class DiscourseClient:
         """
         url = f"{self._base_url}{path}"
         response = self._session.post(url, json=body, timeout=30)
-        response.raise_for_status()
+        if not response.ok:
+            try:
+                detail = response.json()
+            except Exception:
+                detail = response.text[:500]
+            raise requests.HTTPError(
+                f"{response.status_code} {response.reason} for url: {url}\n"
+                f"Discourse response: {detail}",
+                response=response,
+            )
         return response.json()
 
     def list_topics(self, category_id: int) -> list[DiscourseTopic]:

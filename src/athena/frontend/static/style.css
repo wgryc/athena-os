@@ -503,6 +503,14 @@ header .spacer { flex: 1; }
     border-radius: 4px;
     background: color-mix(in srgb, var(--cyan) 15%, transparent);
     color: var(--cyan);
+    transition: background 0.2s, color 0.2s;
+}
+.tool-tag.done {
+    background: color-mix(in srgb, var(--green) 15%, transparent);
+    color: var(--green);
+}
+.tool-tag.done::before {
+    content: '✓ ';
 }
 
 @keyframes pulse-opacity {

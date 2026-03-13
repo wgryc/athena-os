@@ -1,0 +1,31 @@
+{
+    "discourse_base_url": "https://athena-os.discourse.group/",
+    "discourse_api_key": "removed",
+    "category_id": 6,
+    "bot_username": "test_bot_2",
+    "personality_file": "e_personality.md",
+    "memory_file": "e_memory.md",
+    "todo_file": "e_todo.md",
+    "poll_interval_seconds": 300,
+    "xx--triage_model": "anthropic/claude-haiku-4-5-20251001",
+    "xx--reply_model": "anthropic/claude-sonnet-4-5",
+    "triage_model": "openai/gpt-5-mini",
+    "reply_model": "openai/gpt-5.2",
+    "max_reply_tokens": 12000,
+    "engagement_threshold": 0,
+    "max_replies_per_hour": 5,
+    "max_replies_per_day": 30,
+    "tools": [
+        "get_stock_price",
+        "stock_price_history",
+        "news_search",
+        "crawl_page",
+        "et_events_search",
+        "sec_filings",
+        "sec_filing_content",
+        "insider_trades",
+        "get_option_price",
+        "firecrawl_search",
+        "firecrawl_scrape"
+    ]
+}
