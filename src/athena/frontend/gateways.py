@@ -106,11 +106,15 @@ class TelegramGateway(Gateway):
             None, self._message_handler, text, "telegram"
         )
 
-        for chunk in self._split_message(response):
-            await update.message.reply_text(chunk)
+        # Skip sending if silent (NO_VISIBLE_MESSAGE) or empty response
+        if response.strip():
+            for chunk in self._split_message(response):
+                await update.message.reply_text(chunk)
 
     def send_message(self, text: str) -> None:
         """Send a message to the most recent Telegram chat."""
+        if not text or not text.strip():
+            return
         if not self._chat_id or not self._loop or not self._tg_app:
             print(f"[Telegram] send_message skipped: chat_id={self._chat_id}, "
                   f"loop={self._loop is not None}, app={self._tg_app is not None}")

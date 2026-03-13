@@ -16,6 +16,7 @@ scrapingbee
 google-search-results
 tiktoken
 edgartools
+firecrawl-py
 
 # Dev dependencies below...
 pytest

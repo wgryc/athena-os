@@ -1,6 +1,6 @@
 [project]
 name = "athenaos"
-version = "0.1.0"
+version = "0.1.1"
 description = "ATHENA - Agentic Toolkit for Holistic Economic Narratives and Analysis"
 requires-python = ">=3.10"
 dependencies = [
@@ -23,6 +23,7 @@ dependencies = [
     "google-search-results",
     "tiktoken",
     "edgartools",
+    "firecrawl-py",
 ]
 
 [project.scripts]
@@ -46,3 +47,4 @@ where = ["src"]
 "athena.dashboard" = ["templates/*.html"]
 "athena.agents" = ["templates/*.j2"]
 "athena.frontend" = ["templates/*.html", "static/*.css"]
+"athena.discourse" = ["templates/*.j2"]

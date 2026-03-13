@@ -3,6 +3,7 @@
 import atexit
 import json
 import os
+import re
 import threading
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -42,14 +43,195 @@ from ..tools.web import NewsSearch, CrawlPage
 from ..tools.events import ETEventsSearch, ETEventsWidget
 from ..tools.filings import SECFilings, SECFilingContent, SECFilingsWidget, InsiderTrades, InsiderTradesWidget
 from ..tools.tasks import ManageTasks, ScheduledTasksWidget
+from ..tools.agent_files import ReadAgentFile, UpdateAgentFile
+from ..tools.discourse_post import CreateDiscoursePost, ListDiscourseTopics, ReadDiscourseTopic
+from ..tools.firecrawl import FirecrawlSearch, FirecrawlScrape
 from ..tasks import ScheduledTask, load_tasks_from_excel, save_tasks_to_excel, parse_schedule
 from .scheduler import TaskScheduler
 from .. import pricingdata
 
 load_dotenv()
 
-CHAT_MODEL = "anthropic/claude-opus-4-5"
+_FALLBACK_CHAT_MODEL = "anthropic/claude-haiku-4-5-20251001"
+CHAT_MODEL = os.getenv("DEFAULT_LLM_MODEL", _FALLBACK_CHAT_MODEL)
 MAX_TOKENS = 16000
+COMPACT_ON_NUM_TOKENS = 80000
+
+_LITELLM_FIELDS = frozenset(("role", "content", "tool_calls", "tool_call_id"))
+
+
+def _strip_extra_fields(msg: dict) -> dict:
+    """Return a copy of *msg* keeping only fields recognized by litellm.
+
+    Args:
+        msg: A conversation message dict that may contain extra keys
+            (e.g. ``source``).
+
+    Returns:
+        New dict containing only the keys in ``_LITELLM_FIELDS``.
+    """
+    return {k: v for k, v in msg.items() if k in _LITELLM_FIELDS}
+
+
+def _estimate_token_count(messages: list[dict], system_prompt: str = "") -> int:
+    """Estimate the total token count of the conversation.
+
+    Args:
+        messages: The conversation message list.
+        system_prompt: The system prompt string.
+
+    Returns:
+        Estimated total token count.
+    """
+    try:
+        all_messages = [{"role": "system", "content": system_prompt}] + [
+            _strip_extra_fields(m) for m in messages
+        ]
+        return litellm.token_counter(model=CHAT_MODEL, messages=all_messages)
+    except Exception:
+        # Fallback heuristic: ~4 chars per token
+        total_chars = len(system_prompt)
+        for m in messages:
+            content = m.get("content") or ""
+            total_chars += len(content)
+            if m.get("tool_calls"):
+                total_chars += len(json.dumps(m["tool_calls"]))
+        return total_chars // 4
+
+
+def _safe_split_index(messages: list[dict], desired_keep: int) -> int:
+    """Find a safe split index that never orphans tool_result messages.
+
+    The Anthropic API requires every ``tool_result`` (role="tool") message to
+    be immediately preceded by an ``assistant`` message containing the matching
+    ``tool_use``.  When we slice a conversation for compaction we must ensure
+    the cut point does not land between an assistant-with-tool_calls and its
+    tool results.
+
+    Args:
+        messages: Full conversation message list.
+        desired_keep: How many trailing messages we'd *like* to preserve.
+
+    Returns:
+        The index into *messages* at which to split.  Everything before this
+        index will be summarized; everything from this index onward is kept.
+    """
+    if desired_keep >= len(messages):
+        return 0
+
+    split = len(messages) - desired_keep
+
+    # Walk the split backward until the first preserved message is NOT a tool
+    # result.  This guarantees the matching assistant+tool_calls message is
+    # also inside the preserved window.
+    while split > 0 and messages[split].get("role") == "tool":
+        split -= 1
+
+    return split
+
+
+def _compact_conversation(
+    messages: list[dict],
+    system_prompt: str,
+) -> list[dict]:
+    """Compact the conversation by asking the LLM to summarize it.
+
+    Preserves the most recent messages for immediate context (at least 4,
+    but more if needed to keep tool call/result pairs intact).
+    Falls back to keeping the last 20 messages on failure.
+
+    Args:
+        messages: Current conversation messages.
+        system_prompt: The system prompt (for context in summarization).
+
+    Returns:
+        New compacted message list.
+    """
+    preserve_count = 4
+    if len(messages) <= preserve_count:
+        return messages
+
+    split = _safe_split_index(messages, preserve_count)
+    if split == 0:
+        return messages
+
+    messages_to_summarize = messages[:split]
+    preserved = messages[split:]
+
+    summary_request = [
+        {"role": "system", "content": (
+            "You are a conversation summarizer. Summarize the following conversation "
+            "into a concise but comprehensive summary. Preserve all important facts, "
+            "decisions, tool results, and context. This summary will replace the "
+            "original messages to manage context window size.\n\n"
+            "Format your summary as a clear, structured recap."
+        )},
+        {"role": "user", "content": (
+            "Summarize this conversation:\n\n"
+            + json.dumps([_strip_extra_fields(m) for m in messages_to_summarize], indent=2)
+        )},
+    ]
+
+    try:
+        response = litellm.completion(
+            model=CHAT_MODEL,
+            messages=summary_request,
+            max_tokens=4000,
+        )
+        summary_text = response.choices[0].message.content
+
+        compacted = [
+            {
+                "role": "assistant",
+                "content": f"[CONVERSATION SUMMARY]\n{summary_text}",
+                "_is_compaction": True,
+            }
+        ] + preserved
+
+        print(f"[Compaction] Reduced {len(messages)} messages to {len(compacted)} "
+              f"(summary + {len(preserved)} preserved)", flush=True)
+
+        return compacted
+
+    except Exception as e:
+        print(f"[Compaction] Failed: {e}", flush=True)
+        fallback_split = _safe_split_index(messages, 20)
+        return messages[fallback_split:]
+
+
+def _save_chat(messages: list[dict], chat_path: Path) -> None:
+    """Persist the conversation messages to a JSON file.
+
+    Args:
+        messages: The conversation message list.
+        chat_path: Path to the chat JSON file.
+    """
+    try:
+        chat_path.write_text(json.dumps(messages, indent=2, default=str) + "\n")
+    except Exception as e:
+        print(f"[Chat] Failed to save chat: {e}", flush=True)
+
+
+def _load_chat(chat_path: Path) -> list[dict]:
+    """Load conversation messages from a JSON file.
+
+    Args:
+        chat_path: Path to the chat JSON file.
+
+    Returns:
+        List of conversation message dicts, or empty list if file
+        doesn't exist or is invalid.
+    """
+    if not chat_path.exists():
+        return []
+    try:
+        data = json.loads(chat_path.read_text())
+        if isinstance(data, list):
+            print(f"[Chat] Loaded {len(data)} message(s) from {chat_path}", flush=True)
+            return data
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"[Chat] Failed to load chat: {e}", flush=True)
+    return []
 
 
 def _load_config(config_path: Path) -> dict:
@@ -60,14 +242,20 @@ def _load_config(config_path: Path) -> dict:
             same directory if the primary file does not exist.
 
     Returns:
-        Parsed configuration dict, or empty dict on missing/invalid file.
+        Parsed configuration dict. If no config file is found, returns a
+        default layout with portfolio_summary and portfolio_value_chart widgets.
     """
     path = config_path
     if not path.exists():
         # Fall back to widgets.json for backwards compatibility
         path = config_path.parent / "widgets.json"
     if not path.exists():
-        return {}
+        return {
+            "widgets": [
+                [{"tool": "portfolio_summary_widget"}],
+                [{"tool": "portfolio_value_chart_widget"}],
+            ]
+        }
 
     try:
         data = json.loads(path.read_text())
@@ -152,20 +340,64 @@ def _build_widget_context(
     return "\n".join(lines)
 
 
-_LITELLM_FIELDS = frozenset(("role", "content", "tool_calls", "tool_call_id"))
-
-
-def _strip_extra_fields(msg: dict) -> dict:
-    """Return a copy of *msg* keeping only fields recognized by litellm.
+def _wrap_user_message(content: str, source: str = "web") -> str:
+    """Wrap user message content with system metadata.
 
     Args:
-        msg: A conversation message dict that may contain extra keys
-            (e.g. ``source``).
+        content: The raw user message text.
+        source: Message origin -- 'web', 'telegram', or 'scheduler'.
 
     Returns:
-        New dict containing only the keys in ``_LITELLM_FIELDS``.
+        Formatted string with [SYSTEM INFO] and [MESSAGE] sections.
     """
-    return {k: v for k, v in msg.items() if k in _LITELLM_FIELDS}
+    now = datetime.now(timezone.utc)
+    return (
+        f"[SYSTEM INFO]\n"
+        f"Current Date/Time: {now.strftime('%Y-%m-%d %H:%M UTC')}\n"
+        f"Source: {source}\n\n"
+        f"[MESSAGE]\n"
+        f"{content}"
+    )
+
+
+# Regex patterns for parsing structured LLM responses
+_THINKING_PATTERN = re.compile(
+    r"<INTERNAL_THINKING>(.*?)</INTERNAL_THINKING>",
+    re.DOTALL,
+)
+_RESPONSE_PATTERN = re.compile(
+    r"<RESPONSE_TO_USER>(.*?)</RESPONSE_TO_USER>",
+    re.DOTALL,
+)
+_NO_VISIBLE_MESSAGE = "NO_VISIBLE_MESSAGE"
+
+
+def _parse_llm_response(full_text: str) -> tuple[str, str, bool]:
+    """Parse structured LLM response into thinking and user-visible parts.
+
+    Args:
+        full_text: The complete LLM response text.
+
+    Returns:
+        Tuple of (thinking_text, response_text, is_silent).
+        If parsing fails, the entire text is treated as the response.
+    """
+    thinking_match = _THINKING_PATTERN.search(full_text)
+    response_match = _RESPONSE_PATTERN.search(full_text)
+
+    thinking = thinking_match.group(1).strip() if thinking_match else ""
+    if response_match:
+        response = response_match.group(1).strip()
+    elif thinking_match:
+        # Structured format used but <RESPONSE_TO_USER> is missing — strip the
+        # thinking block so it is never shown to the user as a fallback response.
+        response = _THINKING_PATTERN.sub("", full_text).strip()
+    else:
+        response = full_text.strip()
+
+    is_silent = response == _NO_VISIBLE_MESSAGE
+
+    return thinking, response, is_silent
 
 
 def _build_system_prompt(
@@ -174,6 +406,7 @@ def _build_system_prompt(
     portfolio_file: str = "",
     portfolio_description: str = "",
     tasks: list | None = None,
+    frontend_llm_chat_style: str = "",
 ) -> str:
     """Build a system prompt containing portfolio context for the chat.
 
@@ -183,6 +416,7 @@ def _build_system_prompt(
         portfolio_file: Path to the portfolio Excel file (for display).
         portfolio_description: Human-readable portfolio description.
         tasks: Optional list of ``ScheduledTask`` objects to include.
+        frontend_llm_chat_style: Optional custom style/personality instructions.
 
     Returns:
         Complete system prompt string for the LLM.
@@ -253,7 +487,32 @@ ${total_value:,.2f} USD
 - You have access to tools that can fetch live stock prices. Use them when the user asks for \
 current or recent prices of specific tickers, especially for tickers not shown in the portfolio data above.
 - If the user has live widget data visible, you can reference those prices directly without needing to call tools.
-- The current date/time is {now.strftime('%Y-%m-%d %H:%M UTC')}."""
+
+## Message Format
+User messages are formatted with a [SYSTEM INFO] header containing the current date/time (UTC) and \
+message source (web, telegram, or scheduler), followed by a [MESSAGE] section with the actual content. \
+Always reference the [SYSTEM INFO] for the accurate current date and time.
+
+## Response Format
+IMPORTANT: Structure ALL of your responses using this exact format:
+
+<INTERNAL_THINKING>
+Your internal reasoning, research notes, analysis, tool call planning, and any other content \
+that should only be visible in the debug log. This section is never shown to the user.
+</INTERNAL_THINKING>
+
+<RESPONSE_TO_USER>
+The response that will be shown to the user in the chat interface and forwarded to \
+external messaging platforms like Telegram. Supports full markdown formatting.
+</RESPONSE_TO_USER>
+
+- You MUST always include both tags in every response, even if the INTERNAL_THINKING section is brief.
+- If you have nothing to say to the user (e.g., completing a background/scheduled task silently, \
+or a task where no user notification is needed), use exactly: \
+<RESPONSE_TO_USER>NO_VISIBLE_MESSAGE</RESPONSE_TO_USER>{f"""
+
+## Communication Style
+{frontend_llm_chat_style}""" if frontend_llm_chat_style else ""}"""
 
 
 def _build_dashboard_data(
@@ -337,6 +596,7 @@ def create_app(
     portfolio_file: str | None = None,
     pricing_manager: PricingDataManager | None = None,
     force_cache_refresh: bool = False,
+    discourse_config_path: str | None = None,
 ) -> Flask:
     """Create and configure the Flask application.
 
@@ -347,6 +607,9 @@ def create_app(
             When provided, it is attached to the portfolio for live pricing.
         force_cache_refresh: When ``True``, bypass disk cache for price
             history lookups.
+        discourse_config_path: Optional path to a discourse bot JSON config
+            file. When provided, loads the bot's personality, memory, todo,
+            and discourse/firecrawl tools into the frontend chat.
 
     Returns:
         Configured Flask application instance with all routes registered.
@@ -360,13 +623,27 @@ def create_app(
         config.get("widgets", [])
     )
 
+    # Allow config.json to override the chat model
+    global CHAT_MODEL
+    if config.get("model"):
+        CHAT_MODEL = config["model"]
+
     portfolio_file_path: str | None = portfolio_file
     portfolio: Portfolio | None = None
     system_prompt: str = ""
-    conversation_messages: list[dict] = []
     conversation_lock = threading.Lock()
     cached_dashboard: dict | None = None
     _gateway_stream: dict | None = None  # {"source": "...", "content": "..."}
+
+    # ── Chat Persistence ────────────────────────────────
+    chat_file_path: str | None = config.get("chat_file")
+    chat_path: Path | None = Path(chat_file_path) if chat_file_path else None
+    conversation_messages: list[dict] = _load_chat(chat_path) if chat_path else []
+
+    def _persist_chat() -> None:
+        """Save conversation to disk if a chat file is configured."""
+        if chat_path is not None:
+            _save_chat(conversation_messages, chat_path)
 
     # ── Tasks ────────────────────────────────────────────
     tasks_file_path: str | None = config.get("tasks_file")
@@ -441,6 +718,43 @@ def create_app(
             delete_task=_delete_task,
         ),
     ]
+    # Always add Firecrawl tools if API key is available
+    if os.getenv("FIRECRAWL_API_KEY"):
+        available_tools.extend([FirecrawlSearch(), FirecrawlScrape()])
+
+    # Discourse integration: load personality, memory, todo, and discourse tools
+    discourse_config: dict | None = None
+    if discourse_config_path:
+        from ..discourse.worker import load_config as load_discourse_config
+        from ..discourse.api import DiscourseClient
+
+        discourse_config = load_discourse_config(discourse_config_path)
+
+        # Agent-file tools (read/update personality, memory, todo)
+        for file_key, label in [
+            ("_personality_path", "personality"),
+            ("_memory_path", "memory"),
+            ("_todo_path", "todo"),
+        ]:
+            fpath = discourse_config.get(file_key)
+            if fpath:
+                available_tools.append(ReadAgentFile(fpath, label, f"read_{label}"))
+                available_tools.append(UpdateAgentFile(fpath, label, f"update_{label}"))
+
+        # Discourse API tools
+        dc_client = DiscourseClient(
+            base_url=discourse_config["discourse_base_url"],
+            api_key=discourse_config["discourse_api_key"],
+            bot_username=discourse_config["bot_username"],
+        )
+        available_tools.extend([
+            CreateDiscoursePost(dc_client, discourse_config["category_id"]),
+            ListDiscourseTopics(dc_client, discourse_config["category_id"]),
+            ReadDiscourseTopic(dc_client),
+        ])
+
+        print(f"  Discourse config loaded: {discourse_config.get('bot_username', 'N/A')}")
+
     tools_json = [t.to_json() for t in available_tools]
     tools_by_name: dict[str, Tool] = {t.name: t for t in available_tools}
     tool_labels: dict[str, str] = {t.name: t.label for t in available_tools}
@@ -473,6 +787,7 @@ def create_app(
     visual_tools_by_name: dict[str, VisualTool] = {t.name: t for t in visual_tools}
 
     portfolio_description: str = config.get("portfolio_description", "")
+    frontend_llm_chat_style: str = config.get("frontend_llm_chat_style", "")
 
     if portfolio_file:
         if not Path(portfolio_file).exists():
@@ -506,7 +821,34 @@ def create_app(
             portfolio_file=portfolio_file,
             portfolio_description=portfolio_description,
             tasks=scheduled_tasks,
+            frontend_llm_chat_style=frontend_llm_chat_style,
         )
+
+    def _append_discourse_context(prompt: str) -> str:
+        """Append discourse personality, memory, and todo to a system prompt."""
+        if not discourse_config:
+            return prompt
+        # Re-read files each time so edits via tools are reflected
+        sections: list[str] = []
+        for fkey, label in [
+            ("_personality_path", "Discourse Personality"),
+            ("_memory_path", "Discourse Memory"),
+            ("_todo_path", "Discourse Todo"),
+        ]:
+            fpath = discourse_config.get(fkey)
+            if fpath and Path(fpath).exists():
+                content = Path(fpath).read_text().strip()
+                if content:
+                    sections.append(f"\n## {label}\n{content}")
+        sections.append(
+            "\n## Discourse Tools\n"
+            "You have tools to read and update your personality, memory, and "
+            "todo files, as well as tools to create posts, list topics, and "
+            "read topics on the Discourse forum. Use them when asked."
+        )
+        return prompt + "\n".join(sections)
+
+    system_prompt = _append_discourse_context(system_prompt)
 
     # ── Page ──────────────────────────────────────────────
 
@@ -536,7 +878,18 @@ def create_app(
         if not os.getenv("ANTHROPIC_API_KEY"):
             return {"error": "ANTHROPIC_API_KEY not set"}, 500
 
-        conversation_messages.append({"role": "user", "content": user_message, "source": "web"})
+        wrapped_message = _wrap_user_message(user_message, "web")
+        conversation_messages.append({"role": "user", "content": wrapped_message, "source": "web"})
+
+        # Check token count and compact if needed
+        token_count = _estimate_token_count(conversation_messages, system_prompt)
+        if token_count > COMPACT_ON_NUM_TOKENS:
+            print(f"[Compaction] Token count {token_count} exceeds threshold "
+                  f"{COMPACT_ON_NUM_TOKENS}", flush=True)
+            conversation_messages[:] = _compact_conversation(
+                conversation_messages, system_prompt
+            )
+            _persist_chat()
 
         litellm_messages = (
             [{"role": "system", "content": system_prompt}]
@@ -560,6 +913,11 @@ def create_app(
                     # Accumulate streamed tool calls by index
                     tool_calls_acc: dict[int, dict] = {}
                     chunk_content = ""
+                    # Section tracking for thinking/response streaming
+                    thinking_started = False
+                    response_started = False
+                    in_thinking = False
+                    in_response = False
 
                     for chunk in response:
                         delta = chunk.choices[0].delta
@@ -567,7 +925,33 @@ def create_app(
                         if delta.content:
                             chunk_content += delta.content
                             full_response += delta.content
-                            sse_data = json.dumps({"type": "chunk", "content": delta.content})
+
+                            # Detect section transitions on accumulated text
+                            if "<INTERNAL_THINKING>" in chunk_content and not thinking_started:
+                                thinking_started = True
+                                in_thinking = True
+                                in_response = False
+                                yield f"data: {json.dumps({'type': 'thinking_start'})}\n\n"
+
+                            if "</INTERNAL_THINKING>" in chunk_content and in_thinking:
+                                in_thinking = False
+                                yield f"data: {json.dumps({'type': 'thinking_end'})}\n\n"
+
+                            if "<RESPONSE_TO_USER>" in chunk_content and not response_started:
+                                response_started = True
+                                in_response = True
+                                in_thinking = False
+                                yield f"data: {json.dumps({'type': 'response_start'})}\n\n"
+
+                            if "</RESPONSE_TO_USER>" in chunk_content and in_response:
+                                in_response = False
+
+                            section = "thinking" if in_thinking else ("response" if in_response else "raw")
+                            sse_data = json.dumps({
+                                "type": "chunk",
+                                "content": delta.content,
+                                "section": section,
+                            })
                             yield f"data: {sse_data}\n\n"
 
                         if hasattr(delta, "tool_calls") and delta.tool_calls:
@@ -606,7 +990,7 @@ def create_app(
                     yield f"data: {json.dumps({'type': 'tool_use', 'tools': tool_display})}\n\n"
 
                     # Execute each tool and append results
-                    for tc in tc_list:
+                    for i, tc in enumerate(tc_list):
                         tool = tools_by_name.get(tc["function"]["name"])
                         if tool:
                             try:
@@ -623,20 +1007,38 @@ def create_app(
                         }
                         messages.append(tool_msg)
                         conversation_messages.append(tool_msg)
+                        yield f"data: {json.dumps({'type': 'tool_done', 'index': i})}\n\n"
 
                     # Signal a new message bubble before the follow-up response
                     yield f"data: {json.dumps({'type': 'new_message'})}\n\n"
 
+                    # Reset section tracking for next LLM response
+                    thinking_started = False
+                    response_started = False
+                    in_thinking = False
+                    in_response = False
+
                     # Loop back to let the model produce a final response
 
-                yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                conversation_messages.append({"role": "assistant", "content": full_response})
+                # Parse the final full response
+                thinking, user_response, is_silent = _parse_llm_response(full_response)
+
+                yield f"data: {json.dumps({'type': 'done', 'thinking': thinking, 'response': user_response, 'is_silent': is_silent})}\n\n"
+                conversation_messages.append({
+                    "role": "assistant",
+                    "content": full_response,
+                    "_thinking": thinking,
+                    "_user_response": user_response,
+                    "_is_silent": is_silent,
+                })
+                _persist_chat()
 
             except Exception as e:
                 error_msg = str(e)
                 yield f"data: {json.dumps({'type': 'error', 'content': error_msg})}\n\n"
                 if conversation_messages and conversation_messages[-1]["role"] == "user":
                     conversation_messages.pop()
+                _persist_chat()
 
         return Response(
             generate(),
@@ -651,15 +1053,41 @@ def create_app(
     def reset():
         nonlocal conversation_messages
         conversation_messages = []
+        _persist_chat()
         return {"status": "ok"}
 
     @app.route("/api/chatlog")
     def chatlog():
+        token_count = _estimate_token_count(conversation_messages, system_prompt)
         return {
             "system_prompt": system_prompt,
             "messages": conversation_messages,
             "tools": tools_json,
+            "token_count": token_count,
+            "compact_threshold": COMPACT_ON_NUM_TOKENS,
+            "message_count": len(conversation_messages),
         }
+
+    @app.route("/api/chatlog/download")
+    def chatlog_download():
+        """Download the complete debug log as a JSON file."""
+        now = datetime.now(timezone.utc)
+        log_data = {
+            "exported_at": now.isoformat(),
+            "system_prompt": system_prompt,
+            "messages": conversation_messages,
+            "tools": tools_json,
+            "token_count": _estimate_token_count(conversation_messages, system_prompt),
+            "compact_threshold": COMPACT_ON_NUM_TOKENS,
+            "model": CHAT_MODEL,
+            "max_tokens": MAX_TOKENS,
+        }
+        filename = f"athena_debug_log_{now.strftime('%Y%m%d_%H%M%S')}.json"
+        return Response(
+            json.dumps(log_data, indent=2, default=str),
+            mimetype="application/json",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
 
     # ── Widgets API ─────────────────────────────────────
 
@@ -718,12 +1146,13 @@ def create_app(
         if changed and portfolio is not None:
             flat_widgets = _flatten_widget_rows(widget_rows)
             widget_ctx = _build_widget_context(flat_widgets, visual_tools_by_name)
-            system_prompt = _build_system_prompt(
+            system_prompt = _append_discourse_context(_build_system_prompt(
                 portfolio, widget_ctx,
                 portfolio_file=portfolio_file_path,
                 portfolio_description=portfolio_description,
                 tasks=scheduled_tasks,
-            )
+                frontend_llm_chat_style=frontend_llm_chat_style,
+            ))
         return {"status": "ok", "changed": changed}
 
     @app.route("/api/widgets/available")
@@ -776,12 +1205,91 @@ def create_app(
         if portfolio is not None:
             flat_widgets = _flatten_widget_rows(widget_rows)
             widget_ctx = _build_widget_context(flat_widgets, visual_tools_by_name)
-            system_prompt = _build_system_prompt(
+            system_prompt = _append_discourse_context(_build_system_prompt(
                 portfolio, widget_ctx,
                 portfolio_file=portfolio_file_path,
                 portfolio_description=portfolio_description,
                 tasks=scheduled_tasks,
-            )
+                frontend_llm_chat_style=frontend_llm_chat_style,
+            ))
+
+        return {"status": "ok"}
+
+    # ── Settings API ──────────────────────────────────────
+
+    # Fields exposed in the settings UI (excludes widgets and gateways internals)
+    _SETTINGS_FIELDS = [
+        "portfolio_file",
+        "portfolio_description",
+        "tasks_file",
+        "show_investing_warning",
+        "frontend_llm_chat_style",
+        "chat_file",
+        "heartbeat_interval_minutes",
+    ]
+
+    @app.route("/api/config", methods=["GET"])
+    def config_get():
+        """Return current config settings (excluding widgets)."""
+        full = _load_config(config_path)
+        settings = {k: full.get(k, "") for k in _SETTINGS_FIELDS}
+        # Ensure boolean field defaults correctly
+        if settings["show_investing_warning"] == "":
+            settings["show_investing_warning"] = True
+        # Ensure numeric field defaults
+        if settings["heartbeat_interval_minutes"] == "":
+            settings["heartbeat_interval_minutes"] = -1
+        # Include gateway telegram bot_token if present
+        gateways = full.get("gateways", {})
+        tg = gateways.get("telegram", {})
+        settings["telegram_bot_token"] = tg.get("bot_token", "")
+        return settings
+
+    @app.route("/api/config", methods=["PUT"])
+    def config_put():
+        """Save settings to config.json (preserves widgets and other keys)."""
+        nonlocal portfolio_description, frontend_llm_chat_style
+        nonlocal show_investing_warning, tasks_file_path
+        nonlocal chat_file_path, chat_path, heartbeat_interval_minutes
+
+        data = request.get_json()
+        if not data:
+            return {"error": "Missing JSON body"}, 400
+
+        full = _load_config(config_path)
+
+        # Update simple fields
+        for key in _SETTINGS_FIELDS:
+            if key in data:
+                val = data[key]
+                if key == "show_investing_warning":
+                    val = bool(val)
+                elif key == "heartbeat_interval_minutes":
+                    try:
+                        val = float(val)
+                    except (TypeError, ValueError):
+                        val = -1
+                full[key] = val
+
+        # Update telegram bot token
+        if "telegram_bot_token" in data:
+            full.setdefault("gateways", {}).setdefault("telegram", {})["bot_token"] = data["telegram_bot_token"]
+
+        config_path.write_text(json.dumps(full, indent=4) + "\n")
+
+        # Update in-memory state
+        portfolio_description = full.get("portfolio_description", "")
+        frontend_llm_chat_style = full.get("frontend_llm_chat_style", "")
+        show_investing_warning = full.get("show_investing_warning") is not False
+        tasks_file_path = full.get("tasks_file")
+
+        # Update chat file path
+        new_chat_file = full.get("chat_file")
+        chat_file_path = new_chat_file
+        chat_path = Path(new_chat_file) if new_chat_file else None
+
+        # Update heartbeat interval (takes effect on next loop iteration)
+        heartbeat_interval_minutes = full.get("heartbeat_interval_minutes", -1)
 
         return {"status": "ok"}
 
@@ -960,11 +1468,13 @@ def create_app(
             if tasks_file_path:
                 save_tasks_to_excel(scheduled_tasks, tasks_file_path)
             # Forward response to all active gateways (e.g. Telegram)
-            for gw in active_gateways:
-                try:
-                    gw.send_message(f"[{task.name}]\n{response}")
-                except Exception as e:
-                    print(f"[Run Now] Failed to forward to {gw.name}: {e}", flush=True)
+            # Skip if response is empty (silent/NO_VISIBLE_MESSAGE)
+            if response.strip():
+                for gw in active_gateways:
+                    try:
+                        gw.send_message(f"[{task.name}]\n{response}")
+                    except Exception as e:
+                        print(f"[Run Now] Failed to forward to {gw.name}: {e}", flush=True)
         except Exception as e:
             print(f"[Run Now] Task '{task.name}' failed: {e}", flush=True)
 
@@ -984,11 +1494,13 @@ def create_app(
 
         flat_widgets = _flatten_widget_rows(widget_rows)
         widget_ctx = _build_widget_context(flat_widgets, visual_tools_by_name)
-        system_prompt = _build_system_prompt(
+        system_prompt = _append_discourse_context(_build_system_prompt(
             portfolio, widget_ctx,
             portfolio_file=portfolio_file_path,
             portfolio_description=portfolio_description,
-        )
+            tasks=scheduled_tasks,
+            frontend_llm_chat_style=frontend_llm_chat_style,
+        ))
         return {"status": "ok"}
 
     # ── Messages API (for gateway sync) ──────────────────
@@ -1019,7 +1531,18 @@ def create_app(
             return "ANTHROPIC_API_KEY not set."
 
         with conversation_lock:
-            conversation_messages.append({"role": "user", "content": text, "source": source})
+            wrapped_text = _wrap_user_message(text, source)
+            conversation_messages.append({"role": "user", "content": wrapped_text, "source": source})
+
+            # Check token count and compact if needed
+            token_count = _estimate_token_count(conversation_messages, system_prompt)
+            if token_count > COMPACT_ON_NUM_TOKENS:
+                print(f"[Compaction] Token count {token_count} exceeds threshold "
+                      f"{COMPACT_ON_NUM_TOKENS}", flush=True)
+                conversation_messages[:] = _compact_conversation(
+                    conversation_messages, system_prompt
+                )
+                _persist_chat()
 
             llm_messages = (
                 [{"role": "system", "content": system_prompt}]
@@ -1102,15 +1625,28 @@ def create_app(
                     full_response = ""
                     _gateway_stream["content"] = ""
 
-                conversation_messages.append({"role": "assistant", "content": full_response, "source": source})
+                # Parse structured response
+                thinking, user_response, is_silent = _parse_llm_response(full_response)
+                conversation_messages.append({
+                    "role": "assistant",
+                    "content": full_response,
+                    "source": source,
+                    "_thinking": thinking,
+                    "_user_response": user_response,
+                    "_is_silent": is_silent,
+                })
+                _persist_chat()
             except Exception as e:
                 full_response = f"Error: {e}"
+                user_response = full_response
+                is_silent = False
                 if conversation_messages and conversation_messages[-1].get("source") == source:
                     conversation_messages.pop()
+                _persist_chat()
             finally:
                 _gateway_stream = None
 
-        return full_response
+        return "" if is_silent else user_response
 
     # ── Gateways ─────────────────────────────────────────
 
@@ -1165,5 +1701,57 @@ def create_app(
             _scheduler.stop()
 
     atexit.register(_shutdown_scheduler)
+
+    # ── Heartbeat ─────────────────────────────────────────
+
+    heartbeat_interval_minutes: float = config.get("heartbeat_interval_minutes", -1)
+    _heartbeat_stop = threading.Event()
+    _heartbeat_thread: threading.Thread | None = None
+
+    _HEARTBEAT_PROMPT = (
+        "[Heartbeat Check-in]\n"
+        "Review our conversation so far. If there's anything you should "
+        "follow up on — pending questions, tasks you offered to do, "
+        "information you promised to look up, or anything the user might "
+        "find useful right now — go ahead and do it.\n\n"
+        "If there's nothing to follow up on, respond with NO_VISIBLE_MESSAGE."
+    )
+
+    def _heartbeat_loop() -> None:
+        """Periodically prompt the LLM to review the conversation."""
+        while not _heartbeat_stop.is_set():
+            interval = heartbeat_interval_minutes
+            if interval <= 0:
+                # Disabled — sleep a bit and re-check in case settings changed
+                _heartbeat_stop.wait(30)
+                continue
+
+            _heartbeat_stop.wait(interval * 60)
+            if _heartbeat_stop.is_set():
+                break
+
+            # Only run if there are messages in the conversation
+            if not conversation_messages:
+                continue
+
+            print(f"[Heartbeat] Running check-in (every {interval} min)", flush=True)
+            try:
+                process_gateway_message(_HEARTBEAT_PROMPT, "heartbeat")
+            except Exception as e:
+                print(f"[Heartbeat] Failed: {e}", flush=True)
+
+    _heartbeat_thread = threading.Thread(target=_heartbeat_loop, daemon=True)
+    _heartbeat_thread.start()
+    if heartbeat_interval_minutes > 0:
+        print(f"Heartbeat started (every {heartbeat_interval_minutes} minutes).")
+    else:
+        print("Heartbeat disabled (interval <= 0).")
+
+    def _shutdown_heartbeat():
+        _heartbeat_stop.set()
+        if _heartbeat_thread and _heartbeat_thread.is_alive():
+            _heartbeat_thread.join(timeout=5)
+
+    atexit.register(_shutdown_heartbeat)
 
     return app

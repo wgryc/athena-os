@@ -108,11 +108,13 @@ class TaskScheduler:
             print(f"[Scheduler] Task '{task.name}' completed.", flush=True)
 
             # Forward response to all active gateways (e.g. Telegram)
-            for gw in self._gateways:
-                try:
-                    gw.send_message(f"[{task.name}]\n{response}")
-                except Exception as e:
-                    print(f"[Scheduler] Failed to forward to {gw.name}: {e}", flush=True)
+            # Skip if response is empty (silent/NO_VISIBLE_MESSAGE)
+            if response.strip():
+                for gw in self._gateways:
+                    try:
+                        gw.send_message(f"[{task.name}]\n{response}")
+                    except Exception as e:
+                        print(f"[Scheduler] Failed to forward to {gw.name}: {e}", flush=True)
 
         except Exception as e:
             print(f"[Scheduler] Task '{task.name}' failed: {e}", flush=True)

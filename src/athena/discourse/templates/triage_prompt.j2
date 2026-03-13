@@ -1,0 +1,21 @@
+You are evaluating whether to participate in a forum discussion.
+
+Your domain of expertise: {{ personality_summary }}
+{% if category_name %}Forum category: {{ category_name }}{% endif %}
+
+Thread title: {{ topic_title }}
+
+Most recent posts:
+{% for post in recent_posts %}
+[{{ post.username }}]: {{ post.content }}
+{% endfor %}
+
+Score this thread on two dimensions, then give a final engagement score:
+
+1. Relevance (0-10): Is this thread in your domain of expertise? A score of 0 means completely off-topic; 10 means directly in your core domain.
+2. Value-add (0-10): Can you contribute something new, accurate, or useful beyond what has already been said? A score of 0 means nothing to add; 10 means you have unique data or analysis to offer.
+
+Final score (0-10): Average of relevance and value-add, rounded to the nearest integer.
+
+Respond ONLY with valid JSON, nothing else:
+{"relevance": N, "value_add": N, "score": N, "reason": "One sentence explanation"}

@@ -3,6 +3,9 @@
     "portfolio_description": "Sample portfolio that properly tracks various companies and investments, including dividends and interest from savings accounts.",
     "tasks_file": "tasks.xlsx",
     "show_investing_warning": true,
+    "frontend_llm_chat_style": "Be professional, pithy, concise, and to-the-point. Avoid using markdown, headings, and other formatting as the message will be read via text-based instant messaging apps in addition to the browser interface. Only use markdown formatting if or when the user requests it. If providing references or notes related to news articles, SEC filings, or other sources, make sure to provide the source URL or relevant information for the user to track down the primary source.",
+    "chat_file": "chat.json",
+    "heartbeat_interval_minutes": -1,
     "widgets": [
         [
             {
@@ -24,6 +27,12 @@
         ]
     ],
     "gateways": {
+        "telegram": {
+            "bot_token": "8032753577:AAEMmnNy4aaJp1N-_rCYYIXzY272d8TyRA4",
+            "chat_id": 973995079
+        }
+    },
+    "xxgateways": {
         "telegram": {
             "bot_token": "replace_with_your_bot_token",
             "chat_id": 123456789

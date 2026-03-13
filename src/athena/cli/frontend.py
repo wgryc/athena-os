@@ -52,6 +52,12 @@ def register_subcommand(subparsers):
         action="store_true",
         help="Bypass cache and fetch fresh pricing data",
     )
+    parser.add_argument(
+        "--discourse",
+        type=str,
+        default=None,
+        help="Path to a discourse bot JSON config file. Loads its personality, memory, todo, and discourse tools into the frontend chat.",
+    )
 
     parser.set_defaults(func=run_frontend)
 
@@ -162,6 +168,7 @@ def run_frontend(args):
             portfolio_file=portfolio_file,
             pricing_manager=pricing_manager,
             force_cache_refresh=args.no_cache,
+            discourse_config_path=args.discourse,
         )
     except Exception as e:
         console.print(f"[red]Error: Failed to load portfolio — {e}[/red]")

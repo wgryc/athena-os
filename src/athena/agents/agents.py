@@ -35,8 +35,7 @@ SLEEP_TIMES_FOR_ANTHROPIC = [60, 120, 300]  # in seconds
 load_dotenv()
 MASSIVE_API_KEY = os.getenv("MASSIVE_API_KEY")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5"
-#DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-5"
+DEFAULT_ANTHROPIC_MODEL = os.getenv("DEFAULT_LLM_MODEL", "anthropic/claude-haiku-4-5-20251001")
 
 ET_API_KEY = os.getenv("ET_API_KEY", "")
 REQUEST_URL = "https://v2.emergingtrajectories.com/p/api/v0/get_events"
@@ -489,7 +488,7 @@ def stream_llm_response(system_prompt: str, messages: list[dict[str, str]], mode
     Args:
         system_prompt: The system prompt to prepend to the conversation.
         messages: List of message dicts with "role" and "content" keys.
-        model: Anthropic model name (e.g., "claude-sonnet-4-5").
+        model: LLM model name in litellm format (e.g., "anthropic/claude-sonnet-4-5").
 
     Returns:
         The text content of the model's response.
@@ -501,14 +500,12 @@ def stream_llm_response(system_prompt: str, messages: list[dict[str, str]], mode
     max_num_attempts = 3
     num_attempts = 0
 
-    # Format model name for litellm (prefix with anthropic/)
-    litellm_model = f"anthropic/{model}"
     litellm_messages = [{"role": "system", "content": system_prompt}] + messages
 
     while num_attempts < max_num_attempts:
         try:
             response = litellm.completion(
-                model=litellm_model,
+                model=model,
                 messages=litellm_messages,
                 max_tokens=8192,
             )

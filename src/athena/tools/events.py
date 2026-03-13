@@ -124,7 +124,7 @@ class ETEventsSearch(Tool):
         return "\n".join(parts)
 
 
-_LLM_MODEL = "anthropic/claude-sonnet-4-5"
+_LLM_MODEL = os.getenv("DEFAULT_LLM_MODEL", "anthropic/claude-haiku-4-5-20251001")
 
 
 def _parse_event_line(event) -> tuple[str, str]:
